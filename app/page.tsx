@@ -1,3 +1,9 @@
+'use client';
+
+import { useState } from 'react';
+import type { TradeProposal } from '../lib/domain';
+import { evaluateProposal } from '../lib/risk-governor';
+
 const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
 
 const agents = [
@@ -7,7 +13,37 @@ const agents = [
   { name: 'Red team', verdict: 'Cleared', note: 'Risk remains defined', tone: 'neutral' },
 ];
 
+const demoProposal: TradeProposal = {
+  id: 'spy-iron-condor-20260828-1430',
+  symbol: 'SPY',
+  strategy: 'iron_condor',
+  maxLoss: 420,
+  definedRisk: true,
+  nakedShort: false,
+  expiresToday: false,
+  paperAccount: true,
+  spreadPct: 0.06,
+  quoteAgeSeconds: 8,
+  correlationSlotsAfter: 1,
+  confidence: 0.76,
+  votes: [
+    { agent: 'regime', approved: true, confidence: 0.82, rationale: 'Event-driven regime' },
+    { agent: 'volatility', approved: true, confidence: 0.78, rationale: 'Implied move is rich' },
+    { agent: 'catalyst', approved: false, confidence: 0.62, rationale: 'Payroll event ahead' },
+    { agent: 'red_team', approved: true, confidence: 0.71, rationale: 'Every loss boundary is defined' },
+  ],
+};
+
+const riskDecision = evaluateProposal(demoProposal, {
+  openRisk: 920,
+  dailyDrawdown: 180,
+  competitionDrawdown: 0,
+});
+
 export default function Home() {
+  const [traceOpen, setTraceOpen] = useState(false);
+  const [agentRunning, setAgentRunning] = useState(true);
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -40,6 +76,14 @@ export default function Home() {
           <div className="market-state">
             <span><i />MARKET OPEN</span>
             <strong>14:32:08 ET</strong>
+            <button
+              className="agent-toggle"
+              type="button"
+              aria-pressed={agentRunning}
+              onClick={() => setAgentRunning((running) => !running)}
+            >
+              {agentRunning ? 'Pause agent' : 'Resume agent'}
+            </button>
           </div>
         </header>
 
@@ -64,8 +108,8 @@ export default function Home() {
           </article>
           <article className="metric">
             <p>Agent state</p>
-            <h2 className="state"><i />Scanning</h2>
-            <div className="metric-foot"><small>Next cycle</small><b className="muted">02:14</b></div>
+            <h2 className="state"><i className={agentRunning ? '' : 'paused'} />{agentRunning ? 'Scanning' : 'Paused'}</h2>
+            <div className="metric-foot"><small>{agentRunning ? 'Next cycle' : 'Execution lock'}</small><b className="muted">{agentRunning ? '02:14' : 'ON'}</b></div>
           </article>
         </div>
 
@@ -102,8 +146,8 @@ export default function Home() {
             </div>
 
             <div className="decision-foot">
-              <span><i />Passed 12/12 deterministic gates</span>
-              <button type="button">View decision trace <b>→</b></button>
+              <span><i />Passed {riskDecision.passed}/{riskDecision.total} deterministic gates</span>
+              <button type="button" onClick={() => setTraceOpen(true)}>View decision trace <b>→</b></button>
             </div>
           </article>
 
@@ -126,6 +170,34 @@ export default function Home() {
           <span>Last sync <b>8s ago</b></span>
         </footer>
       </section>
+
+      {traceOpen && (
+        <div className="dialog-backdrop" role="presentation" onMouseDown={() => setTraceOpen(false)}>
+          <section
+            className="trace-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trace-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="trace-head">
+              <div><p className="eyebrow">DECISION TRACE · {demoProposal.id}</p><h2 id="trace-title">Why this trade passed</h2></div>
+              <button type="button" onClick={() => setTraceOpen(false)} aria-label="Close decision trace">×</button>
+            </div>
+            <p className="trace-summary">The AI council can propose a trade, but it cannot override these rules. A single failed gate blocks execution.</p>
+            <div className="gate-list">
+              {riskDecision.gates.map((item, index) => (
+                <div className="gate" key={item.id}>
+                  <span className={item.passed ? 'pass' : 'fail'}>{item.passed ? '✓' : '×'}</span>
+                  <div><small>GATE {String(index + 1).padStart(2, '0')}</small><b>{item.label}</b></div>
+                  <p>{item.detail}</p>
+                </div>
+              ))}
+            </div>
+            <div className="trace-foot"><span>Outcome</span><strong>{riskDecision.approved ? 'APPROVED FOR PAPER' : 'BLOCKED'}</strong></div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
