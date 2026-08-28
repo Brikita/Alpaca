@@ -13,7 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Untitled site',
+  title: 'VolGuard AI — Autonomous Options Desk',
+  description:
+    'An autonomous, risk-governed options trading agent built on Alpaca paper trading.',
 };
 
 export default function RootLayout({

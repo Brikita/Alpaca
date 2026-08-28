@@ -1,106 +1,130 @@
-const sidebarWidths = [74, 58, 82, 66, 71, 54];
-const articleWidths = [100, 97, 94, 98, 86];
+const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
+
+const agents = [
+  { name: 'Regime', verdict: 'Approve', note: 'Event-driven · 82%', tone: 'positive' },
+  { name: 'Volatility', verdict: 'Approve', note: 'Implied move rich', tone: 'positive' },
+  { name: 'Catalyst', verdict: 'Caution', note: 'Payrolls in 4 days', tone: 'warning' },
+  { name: 'Red team', verdict: 'Cleared', note: 'Risk remains defined', tone: 'neutral' },
+];
 
 export default function Home() {
   return (
-    <main className="fixed inset-0 overflow-hidden bg-[#fbfaf8] text-zinc-900">
-      <header
-        aria-hidden="true"
-        className="grid h-[76px] grid-cols-[1fr_auto_1fr] items-center border-b border-stone-200 bg-white/95 px-6 sm:px-14"
-      >
-        <div className="flex items-center gap-3">
-          <span className="h-9 w-9 rounded-full bg-stone-100" />
-          <span className="h-3.5 w-28 rounded-full bg-stone-100" />
+    <main className="app-shell">
+      <aside className="sidebar">
+        <a className="brand" href="#" aria-label="VolGuard home">
+          <span className="brand-mark">V</span>
+          <span>VOLGUARD</span>
+        </a>
+
+        <nav className="nav-list" aria-label="Main navigation">
+          <a className="nav-item active" href="#overview"><span>◫</span>Overview</a>
+          <a className="nav-item" href="#decisions"><span>⌁</span>Decisions</a>
+          <a className="nav-item" href="#positions"><span>◇</span>Positions</a>
+          <a className="nav-item" href="#risk"><span>⊘</span>Risk desk</a>
+          <a className="nav-item" href="#journal"><span>≡</span>Journal</a>
+        </nav>
+
+        <div className="sidebar-foot">
+          <div className="connection"><i />Alpaca connected</div>
+          <p>PAPER TRADING</p>
+          <small>Account •••• 7F29</small>
         </div>
-        <span className="hidden h-9 w-[min(30vw,420px)] rounded-xl bg-stone-100 sm:block" />
-        <div className="flex items-center justify-end gap-3">
-          <span className="hidden h-9 w-9 rounded-full bg-stone-100 sm:block" />
-          <span className="h-9 w-24 rounded-xl bg-stone-100" />
-        </div>
-      </header>
+      </aside>
 
-      <div
-        aria-hidden="true"
-        className="grid h-[calc(100%-76px)] grid-cols-[180px_minmax(0,1fr)_260px] gap-10 px-6 pb-24 pt-10 opacity-55 max-lg:grid-cols-[150px_minmax(0,1fr)] max-sm:grid-cols-1 sm:px-14"
-      >
-        <aside className="hidden border-r border-stone-200 pr-7 sm:block">
-          <div className="mb-6 h-2.5 w-16 rounded-full bg-stone-200" />
-          <div className="space-y-4">
-            {sidebarWidths.map((width) => (
-              <div key={width} className="flex items-center gap-3">
-                <span className="h-4 w-4 rounded bg-stone-200" />
-                <span
-                  className="h-2.5 rounded-full bg-stone-200"
-                  style={{ width: `${width}%` }}
-                />
-              </div>
-            ))}
+      <section className="workspace" id="overview">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">AUTONOMOUS OPTIONS DESK</p>
+            <h1>Good evening, operator.</h1>
           </div>
-          <div className="mb-6 mt-9 h-2.5 w-24 rounded-full bg-stone-200" />
-          <div className="space-y-4">
-            {sidebarWidths.slice(0, 3).map((width) => (
-              <span
-                key={width}
-                className="block h-2.5 rounded-full bg-stone-200"
-                style={{ width: `${width}%` }}
-              />
-            ))}
+          <div className="market-state">
+            <span><i />MARKET OPEN</span>
+            <strong>14:32:08 ET</strong>
           </div>
-        </aside>
+        </header>
 
-        <article className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-          <div className="space-y-3">
-            <div className="h-2.5 w-28 rounded-full bg-stone-200" />
-            <div className="h-7 w-4/5 rounded-lg bg-stone-200" />
-            <div className="h-7 w-3/5 rounded-lg bg-stone-200" />
-          </div>
-          <div className="min-h-[240px] flex-1 rounded-2xl bg-stone-200" />
-          <div className="flex items-center gap-3">
-            <span className="h-9 w-9 rounded-full bg-stone-200" />
-            <span className="h-2.5 w-28 rounded-full bg-stone-200" />
-          </div>
-          <div className="space-y-2">
-            {articleWidths.map((width) => (
-              <span
-                key={width}
-                className="block h-2.5 rounded-full bg-stone-200"
-                style={{ width: `${width}%` }}
-              />
-            ))}
-          </div>
-        </article>
-
-        <aside className="space-y-5 max-lg:hidden">
-          {[0, 1].map((card) => (
-            <div
-              key={card}
-              className="space-y-4 rounded-2xl border border-stone-200 bg-white/70 p-6"
-            >
-              <span className="block h-10 w-10 rounded-full bg-stone-200" />
-              <span className="block h-3 w-3/5 rounded-full bg-stone-200" />
-              <span className="block h-2.5 w-full rounded-full bg-stone-200" />
-              <span className="block h-2.5 w-4/5 rounded-full bg-stone-200" />
-              <span className="block h-8 w-24 rounded-lg bg-stone-200" />
+        <div className="metrics">
+          <article className="metric primary-metric">
+            <p>Portfolio equity</p>
+            <h2>$102,418<span>.60</span></h2>
+            <div className="metric-foot"><b>+$2,418.60</b><small>since Aug 28</small></div>
+          </article>
+          <article className="metric">
+            <p>Competition P&amp;L</p>
+            <h2 className="gain">+2.42%</h2>
+            <div className="spark-bars" aria-label="Equity trend rising">
+              {equityBars.map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}
             </div>
-          ))}
-        </aside>
-      </div>
+          </article>
+          <article className="metric">
+            <p>Risk deployed</p>
+            <h2>$1,340</h2>
+            <div className="risk-track"><i /></div>
+            <div className="metric-foot"><small>44% of $3,000 limit</small><b className="muted">Low</b></div>
+          </article>
+          <article className="metric">
+            <p>Agent state</p>
+            <h2 className="state"><i />Scanning</h2>
+            <div className="metric-foot"><small>Next cycle</small><b className="muted">02:14</b></div>
+          </article>
+        </div>
 
-      <section
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="absolute left-1/2 top-[clamp(96px,13vh,122px)] w-[min(620px,calc(100%-40px))] -translate-x-1/2 rounded-[18px] border border-stone-200 bg-white/95 px-5 py-5 shadow-[0_18px_50px_rgb(24_24_27/9%)] backdrop-blur-sm"
-      >
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.09em] text-stone-500">
-          Building your site
-        </p>
-        <h1 className="text-xl font-semibold tracking-tight">
-          Your site is taking shape
-        </h1>
-        <p className="mt-1 text-sm text-stone-500">
-          Your first version will appear here automatically when it’s ready.
-        </p>
+        <div className="dashboard-grid">
+          <article className="decision-card" id="decisions">
+            <div className="card-heading">
+              <div>
+                <p className="eyebrow">LATEST DECISION · 14:30 ET</p>
+                <h2>SPY volatility is overpriced</h2>
+              </div>
+              <span className="confidence">76% confidence</span>
+            </div>
+
+            <div className="strategy-row">
+              <div className="ticker-badge">SPY</div>
+              <div>
+                <small>PROPOSED STRATEGY</small>
+                <h3>Defined-risk iron condor</h3>
+              </div>
+              <div className="strategy-stat"><small>MODEL MOVE</small><b>±0.74%</b></div>
+              <div className="strategy-stat"><small>IMPLIED MOVE</small><b>±1.18%</b></div>
+              <div className="strategy-stat"><small>MAX LOSS</small><b>$420</b></div>
+            </div>
+
+            <p className="thesis">Options imply a move 59% wider than VolGuard’s event-adjusted range. Momentum is neutral, liquidity is healthy, and every loss boundary is known before entry.</p>
+
+            <div className="agent-grid">
+              {agents.map((agent) => (
+                <div className="agent" key={agent.name}>
+                  <div className={`agent-icon ${agent.tone}`}>{agent.name.charAt(0)}</div>
+                  <div><small>{agent.name}</small><b>{agent.verdict}</b><p>{agent.note}</p></div>
+                </div>
+              ))}
+            </div>
+
+            <div className="decision-foot">
+              <span><i />Passed 12/12 deterministic gates</span>
+              <button type="button">View decision trace <b>→</b></button>
+            </div>
+          </article>
+
+          <aside className="risk-card" id="risk">
+            <div className="card-heading"><div><p className="eyebrow">PORTFOLIO GOVERNOR</p><h2>Risk budget</h2></div><span className="shield">✓</span></div>
+            <div className="risk-dial"><div><strong>44%</strong><span>DEPLOYED</span></div></div>
+            <dl className="risk-list">
+              <div><dt>Open risk</dt><dd>$1,340</dd></div>
+              <div><dt>Daily drawdown</dt><dd><span>0.18%</span> / 1.50%</dd></div>
+              <div><dt>Correlated positions</dt><dd>1 / 2</dd></div>
+              <div><dt>Kill switch</dt><dd className="armed">ARMED</dd></div>
+            </dl>
+            <p className="risk-message"><span>✓</span> All systems within policy</p>
+          </aside>
+        </div>
+
+        <footer className="statusbar">
+          <span>VOLGUARD AI <b>v0.1.0</b></span>
+          <span>Educational paper-trading system · No real capital</span>
+          <span>Last sync <b>8s ago</b></span>
+        </footer>
       </section>
     </main>
   );
