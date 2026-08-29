@@ -66,7 +66,17 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Account checks, market data, order previews, and later paper-order execution.
 
-**Current limitation:** The installed CLI is authenticated, but the dashboard is not yet consuming its output.
+**Current limitation:** The installed CLI is authenticated, but the hosted dashboard is not yet consuming its output.
+
+### Sanitized Alpaca snapshot
+
+**Purpose:** Convert private broker responses into a small product-safe contract containing account health, balances, market clock, positions, and open orders.
+
+**Strengths:** Forces paper mode, converts numeric strings into consistent numbers, removes account IDs and broker order IDs, and can be tested without contacting Alpaca.
+
+**Uses:** Morning readiness checks, dashboard metrics, reconciliation, and later risk-budget calculations.
+
+**Current limitation:** The snapshot is collected on demand by the local runner. Durable publishing to the hosted dashboard is the next step.
 
 ### Decision trace
 

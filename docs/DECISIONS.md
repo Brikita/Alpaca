@@ -59,3 +59,15 @@
 **Impact:** Slower first trade, substantially lower operational risk.
 
 **Trade-off:** Early milestones demonstrate observation and explanation rather than P&L.
+
+## ADR-006 — Publish sanitized telemetry, not broker payloads
+
+**Status:** Accepted
+
+**Decision:** Transform Alpaca responses locally and publish only fields the product requires. Exclude credentials, account IDs, broker order IDs, and unneeded profile data.
+
+**Reasoning:** The dashboard needs operational state, not brokerage identity. Data minimization reduces the impact of accidental exposure and gives the interface a stable schema when upstream responses change.
+
+**Impact:** The same sanitized contract can support the dashboard, journal, tests, and later analytics.
+
+**Trade-off:** New dashboard requirements must be deliberately added to the schema rather than reading arbitrary broker fields.

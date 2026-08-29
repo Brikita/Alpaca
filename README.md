@@ -8,6 +8,7 @@ VolGuard is an autonomous, risk-governed options agent for the Alpaca AI Trading
 - Volatility-regime strategy selector
 - Twelve deterministic risk gates
 - Alpaca CLI boundary with a paper-only assertion and execution lock
+- Sanitized read-only Alpaca account snapshot
 - Automated strategy, risk, and safety tests
 
 ## Run the dashboard
@@ -21,6 +22,12 @@ npm run dev
 
 ```powershell
 npm test
+```
+
+Collect a sanitized read-only paper snapshot:
+
+```powershell
+npm run snapshot:alpaca
 ```
 
 ## Connect Alpaca paper trading
