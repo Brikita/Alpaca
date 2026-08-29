@@ -55,7 +55,7 @@ export async function runAlpaca<T>(
   assertCommandAllowed(args, environment);
 
   return new Promise((resolve, reject) => {
-    const child = spawn('alpaca', [...args, '--quiet'], {
+    const child = spawn(environment.ALPACA_CLI_PATH ?? 'alpaca', [...args, '--quiet'], {
       shell: false,
       windowsHide: true,
       env: {
