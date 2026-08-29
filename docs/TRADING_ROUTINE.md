@@ -8,11 +8,14 @@ This is the routine VolGuard is being designed to support. It is a paper-trading
 
 - Confirm paper profile and account status.
 - Confirm execution lock state.
+- Confirm telemetry is recent enough for the intended decision; treat a stale or missing sync as a no-trade condition.
 - Check market hours and scheduled economic events.
 - Verify that option quotes and feeds are available.
 - Review current positions, overnight gaps, and total risk.
 
 **Reasoning:** Operational mistakes can look like strategy failures. Readiness checks isolate the two.
+
+The dashboard's “last sync” label tells you the age of the evidence, not that Alpaca is continuously connected. Refresh the local snapshot before relying on account, position, or market-state values.
 
 ### 2. Define the session risk budget
 
@@ -68,6 +71,8 @@ Monitor fills, spread quality, Greeks, total exposure, event changes, and the in
 ### 10. Reconcile
 
 Match proposals, orders, fills, positions, and account activity. An unexplained mismatch is an operational incident.
+
+Preserve the final telemetry snapshot for the session. The append-only history makes it possible to reconstruct what the dashboard knew at a particular time instead of silently replacing earlier evidence.
 
 ### 11. Review process before outcome
 

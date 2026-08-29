@@ -56,7 +56,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade approval, incident analysis, and judge-facing explanation.
 
-**Current limitation:** Portfolio and quote values on the dashboard are representative until the read-only data layer is connected.
+**Current limitation:** The dashboard now uses real account telemetry, but the governor's displayed twelve-gate decision is still a labeled training example until the option scanner supplies live proposals.
 
 ### Alpaca CLI safety boundary
 
@@ -66,7 +66,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Account checks, market data, order previews, and later paper-order execution.
 
-**Current limitation:** The installed CLI is authenticated, but the hosted dashboard is not yet consuming its output.
+**Current limitation:** The CLI runs on the local Windows runner, so continuous updates require that runner or a scheduled local task to be online.
 
 ### Sanitized Alpaca snapshot
 
@@ -76,7 +76,27 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Morning readiness checks, dashboard metrics, reconciliation, and later risk-budget calculations.
 
-**Current limitation:** The snapshot is collected on demand by the local runner. Durable publishing to the hosted dashboard is the next step.
+**Current limitation:** Collection is on demand until a scheduler is added. A stale snapshot is evidence about the last sync, not proof of current broker state.
+
+### Protected telemetry store
+
+**Purpose:** Persist sanitized paper-account snapshots in a hosted D1 database and serve the newest verified snapshot to the dashboard.
+
+**Strengths:** Alpaca credentials remain local; ingestion uses a separate secret; payload size and schema are validated; duplicate timestamps are ignored; historical snapshots remain available for later audit and analytics.
+
+**Uses:** Durable equity and market-state display, freshness checks, reconciliation, performance history, and evidence for the hackathon demo.
+
+**Current limitation:** The ingest endpoint must be reachable by the local publisher. While the whole site remains owner-only, the hosting access gate may prevent unattended publishing; public judge access and protected ingestion should be enabled together when the submission is ready.
+
+### Real account dashboard state
+
+**Purpose:** Replace invented account numbers with equity, competition P&L, positions, market clock, block status, drawdown, and telemetry age from the latest sanitized snapshot.
+
+**Strengths:** Honest empty and error states prevent stale or missing data from looking like a valid trading account. Broker identifiers never reach the interface.
+
+**Uses:** Pre-market readiness, intraday situational awareness, and demo credibility.
+
+**Current limitation:** The equity sparkline remains illustrative until the history endpoint is connected, and gross position value is not the same as options maximum loss.
 
 ### Decision trace
 
@@ -86,7 +106,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade review, demonstrations, post-trade analysis, and debugging.
 
-**Current limitation:** The displayed proposal is representative rather than generated from a live scan.
+**Current limitation:** The displayed proposal is explicitly labeled as a training example rather than generated from a live scan.
 
 ### Agent pause and execution lock
 

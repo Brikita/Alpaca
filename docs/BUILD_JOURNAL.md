@@ -69,3 +69,33 @@ The snapshot is sufficient for the pre-market readiness check and basic reconcil
 ### Limitation
 
 The hosted dashboard still shows representative data because a web worker cannot launch a Windows CLI. The next step is to persist sanitized telemetry for the dashboard without deploying Alpaca credentials.
+
+## 2026-08-29 — Durable protected telemetry
+
+### What changed
+
+- Added a D1 schema and migration for append-only telemetry snapshots.
+- Added a size-limited, schema-validated ingestion endpoint protected by a dedicated bearer token.
+- Extended the local Alpaca collector so it can publish its sanitized result when telemetry configuration is present.
+- Replaced representative account values with verified equity, P&L, positions, account-health, market-state, drawdown, and sync-age states.
+- Labeled the remaining SPY proposal as a simulated training example.
+- Upgraded Next.js from 16.2.6 to 16.3.3 after the production audit identified security advisories.
+
+### Why
+
+A hosted worker cannot execute the local Alpaca CLI, and the dashboard must never receive brokerage credentials. The resulting boundary is: Alpaca paper account → local read-only runner → sanitized snapshot → protected hosted store → dashboard.
+
+### Strength and use
+
+This creates a durable evidence trail without broadening broker authority. It supports the readiness check before trading, truthful account monitoring during the session, and later reconstruction during review.
+
+### Verification
+
+- Eleven automated tests passed, including paper-mode enforcement, identifier removal, risk gates, strategy selection, and telemetry-contract rejection.
+- Lint and production build passed.
+- The production dependency audit reports zero vulnerabilities.
+- Local API returned a valid empty state and the dashboard rendered the waiting state without console errors or horizontal overflow at desktop and mobile widths.
+
+### Remaining limitation
+
+The first hosted snapshot and unattended publishing still require environment configuration. The site remains owner-only, which is appropriate during development but must be deliberately changed for judge access. Order execution remains locked.

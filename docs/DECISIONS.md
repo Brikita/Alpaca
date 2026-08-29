@@ -71,3 +71,39 @@
 **Impact:** The same sanitized contract can support the dashboard, journal, tests, and later analytics.
 
 **Trade-off:** New dashboard requirements must be deliberately added to the schema rather than reading arbitrary broker fields.
+
+## ADR-007 — Store telemetry as append-only snapshots
+
+**Status:** Accepted
+
+**Decision:** Insert an immutable row for each unique capture timestamp and derive the dashboard's current state from the newest row.
+
+**Reasoning:** Trading review needs historical evidence. Updating a single “current account” record would erase what the system knew before a failure, trade, or market transition.
+
+**Impact:** The same store can later power equity curves, incident reconstruction, stale-data alerts, and session reports.
+
+**Trade-off:** Storage grows over time and will need an explicit retention or archival policy after real usage volume is known.
+
+## ADR-008 — Separate telemetry authorization from Alpaca authorization
+
+**Status:** Accepted
+
+**Decision:** Protect telemetry ingestion with a dedicated secret and never send Alpaca credentials to the hosted application.
+
+**Reasoning:** The hosted dashboard needs permission to accept a narrow sanitized message, not permission to operate the brokerage account.
+
+**Impact:** Exposure of the ingest token cannot directly authorize a broker action, and it can be rotated independently.
+
+**Trade-off:** The local runner and hosted environment require one additional secret to configure and rotate.
+
+## ADR-009 — Missing data must look missing
+
+**Status:** Accepted
+
+**Decision:** Show dashes, waiting states, and telemetry age when no verified snapshot exists rather than falling back to representative balances.
+
+**Reasoning:** A polished but invented number is more dangerous than an explicit unavailable state in a financial system.
+
+**Impact:** Operators and judges can distinguish real broker telemetry from the labeled strategy demonstration.
+
+**Trade-off:** A first visit looks less dramatic until the publisher has completed a sync.
