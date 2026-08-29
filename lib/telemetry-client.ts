@@ -4,13 +4,19 @@ export async function publishTelemetrySnapshot(
   snapshot: AlpacaSnapshot,
   endpoint: string,
   token: string,
+  sitesBypassToken?: string,
 ): Promise<void> {
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${token}`,
+    'content-type': 'application/json',
+  };
+  if (sitesBypassToken) {
+    headers['OAI-Sites-Authorization'] = `Bearer ${sitesBypassToken}`;
+  }
+
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(snapshot),
   });
 

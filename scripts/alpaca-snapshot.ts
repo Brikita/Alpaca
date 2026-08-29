@@ -6,7 +6,12 @@ try {
   const endpoint = process.env.VOLGUARD_TELEMETRY_URL;
   const token = process.env.VOLGUARD_TELEMETRY_TOKEN;
   if (endpoint && token) {
-    await publishTelemetrySnapshot(snapshot, endpoint, token);
+    await publishTelemetrySnapshot(
+      snapshot,
+      endpoint,
+      token,
+      process.env.VOLGUARD_SITES_BYPASS_TOKEN,
+    );
   }
   process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
   if (endpoint && token) {

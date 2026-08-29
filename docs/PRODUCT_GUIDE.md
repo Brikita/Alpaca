@@ -86,7 +86,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Durable equity and market-state display, freshness checks, reconciliation, performance history, and evidence for the hackathon demo.
 
-**Current limitation:** The ingest endpoint must be reachable by the local publisher. While the whole site remains owner-only, the hosting access gate may prevent unattended publishing; public judge access and protected ingestion should be enabled together when the submission is ready.
+**Current limitation:** Owner-only publishing requires both the site bypass credential and the VolGuard ingest token. When the site becomes public for judges, the bypass credential is no longer needed, but the ingest token remains required.
 
 ### Real account dashboard state
 

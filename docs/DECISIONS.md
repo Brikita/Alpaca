@@ -88,11 +88,11 @@
 
 **Status:** Accepted
 
-**Decision:** Protect telemetry ingestion with a dedicated secret and never send Alpaca credentials to the hosted application.
+**Decision:** Protect telemetry ingestion with a dedicated secret and never send Alpaca credentials to the hosted application. While the site is owner-only, use its separate hosting bypass credential only to cross the access gate.
 
 **Reasoning:** The hosted dashboard needs permission to accept a narrow sanitized message, not permission to operate the brokerage account.
 
-**Impact:** Exposure of the ingest token cannot directly authorize a broker action, and it can be rotated independently.
+**Impact:** Exposure of either web credential cannot directly authorize a broker action, and each credential can be rotated independently.
 
 **Trade-off:** The local runner and hosted environment require one additional secret to configure and rotate.
 
