@@ -91,11 +91,12 @@ This creates a durable evidence trail without broadening broker authority. It su
 
 ### Verification
 
-- Eleven automated tests passed, including paper-mode enforcement, identifier removal, risk gates, strategy selection, and telemetry-contract rejection.
+- Twelve automated tests passed, including paper-mode enforcement, identifier removal, risk gates, strategy selection, telemetry-contract rejection, and separate private-site/ingest authorization.
 - Lint and production build passed.
 - The production dependency audit reports zero vulnerabilities.
 - Local API returned a valid empty state and the dashboard rendered the waiting state without console errors or horizontal overflow at desktop and mobile widths.
+- The first private hosted sync returned an active $100,000 paper account, market closed, no positions, no open orders, and no trading block; the deployed dashboard rendered those values without console errors.
 
 ### Remaining limitation
 
-The first hosted snapshot and unattended publishing still require environment configuration. The site remains owner-only, which is appropriate during development but must be deliberately changed for judge access. Order execution remains locked.
+Publishing is still manual until a scheduled local runner is added. The site remains owner-only, which is appropriate during development but must be deliberately changed for judge access. The option proposal is still a labeled training example, and order execution remains locked.
