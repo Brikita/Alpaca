@@ -21,6 +21,19 @@ interface BarsResponse {
 
 export const DEFAULT_OPTION_UNIVERSE = ['SPY', 'QQQ', 'IWM'] as const;
 
+export function describeCollectorError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  try {
+    const payload = JSON.parse(raw) as { error?: unknown; hint?: unknown };
+    if (typeof payload.error === 'string') return payload.error;
+    if (typeof payload.hint === 'string') return payload.hint;
+  } catch {
+    // The CLI may also return ordinary text; sanitize it below.
+  }
+  const line = raw.split(/\r?\n/).find((value) => value.trim())?.trim() ?? 'Unknown collection error';
+  return line.slice(0, 180);
+}
+
 function dateOnly(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
@@ -53,7 +66,7 @@ async function collectSymbol(
     const [bars, chain] = await Promise.all([
       runAlpaca<BarsResponse>([
         'data', 'bars', '--symbol', symbol, '--start', dateOnly(start), '--end', capturedAt.slice(0, 10),
-        '--timeframe', '1Day', '--limit', '30',
+        '--timeframe', '1Day', '--limit', '1000', '--feed', 'iex',
       ], environment, 60_000),
       runAlpaca<OptionChainResponse>([
         'data', 'option', 'chain', '--underlying-symbol', symbol, '--expiration-date', expiration,
@@ -70,7 +83,7 @@ async function collectSymbol(
       chain: chain.data,
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message.split('\n')[0] : 'Unknown collection error';
+    const detail = describeCollectorError(error);
     return buildUnavailableScan({ symbol, capturedAt, expiration, marketOpen }, detail);
   }
 }

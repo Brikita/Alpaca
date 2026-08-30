@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildOptionScan, parseOptionSymbol, type PriceBar } from '../lib/option-intelligence.ts';
-import { targetFriday } from '../lib/option-scan.ts';
+import { describeCollectorError, targetFriday } from '../lib/option-scan.ts';
 
 const capturedAt = '2026-08-28T20:00:20Z';
 const expiration = '2026-09-04';
@@ -24,6 +24,14 @@ test('parses OCC option symbols and selects the next Friday at least three days 
     underlying: 'SPY', expiration: '2026-09-04', type: 'put', strike: 770,
   });
   assert.equal(targetFriday(new Date('2026-08-30T12:00:00Z')), '2026-09-04');
+});
+
+test('extracts a useful message from structured Alpaca CLI errors', () => {
+  const error = new Error(JSON.stringify({
+    error: 'subscription does not permit querying recent SIP data',
+    status: 403,
+  }, null, 2));
+  assert.equal(describeCollectorError(error), 'subscription does not permit querying recent SIP data');
 });
 
 test('builds a candidate only when market, history, quotes, and edge all pass', () => {
