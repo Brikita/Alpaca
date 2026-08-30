@@ -120,10 +120,13 @@ The same feature supports the hackathon demonstration, a pre-trade watchlist, an
 
 ### Verification
 
-- Eighteen automated tests pass.
+- Nineteen automated tests pass.
 - Lint, TypeScript, and the production build pass.
 - The database migration was generated and inspected.
 - The scanner enforces paper mode and never calls an order command.
+- The first real scan exposed a SIP subscription error; the collector was corrected to request Alpaca's available IEX stock feed and structured CLI errors are now readable.
+- A corrected batch was published and read back from the private production endpoint: zero candidates, SPY and QQQ passed four of six checks, and IWM passed three of six.
+- The market-closed batch correctly abstained because Friday's option quotes were roughly 154,000 seconds old. SPY measured a 1.46% model move versus 1.09% implied, QQQ 2.56% versus 1.61%, and IWM 2.05% versus 1.60%.
 
 ### Remaining limitation
 

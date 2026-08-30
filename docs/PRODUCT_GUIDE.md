@@ -52,7 +52,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Purpose:** Read SPY, QQQ, and IWM market data through the authenticated Alpaca CLI, estimate a model move to the target Friday, measure the option-implied move from the nearest quoted call/put pair, and select a defined-risk strategy or abstain.
 
-**Strengths:** Uses broker-sourced evidence rather than demo numbers; keeps raw chains and credentials local; records all six signal checks; fails closed when the market, history, quote pair, liquidity, freshness, or edge is inadequate.
+**Strengths:** Uses broker-sourced evidence rather than demo numbers; requests the subscription-compatible IEX feed for stock history; keeps raw chains and credentials local; records all six signal checks; fails closed when the market, history, quote pair, liquidity, freshness, or edge is inadequate.
 
 **Uses:** Pre-market watchlist preparation, intraday opportunity filtering, comparing realized and implied volatility, and building a dataset of both selected and rejected opportunities.
 
