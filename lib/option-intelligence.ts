@@ -257,7 +257,7 @@ export function buildOptionScan(input: ScanInput): OptionScan {
     quoteAgeSeconds: age,
   };
   const selection = signal
-    ? selectStrategy(signal)
+    ? selectStrategy({ ...signal, spreadPct: 0, quoteAgeSeconds: 0 })
     : { strategy: 'abstain' as const, reason: 'Historical model unavailable.', edge: 0 };
 
   const checks: ScanCheck[] = [

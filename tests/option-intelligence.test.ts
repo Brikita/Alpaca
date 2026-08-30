@@ -58,4 +58,5 @@ test('abstains on the same signal when the market is closed and quotes are stale
   assert.equal(scan.strategy, 'abstain');
   assert.equal(scan.checks.find((check) => check.id === 'session')?.passed, false);
   assert.equal(scan.checks.find((check) => check.id === 'freshness')?.passed, false);
+  assert.equal(scan.checks.find((check) => check.id === 'edge')?.passed, true);
 });
