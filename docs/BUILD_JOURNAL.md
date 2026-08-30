@@ -100,3 +100,31 @@ This creates a durable evidence trail without broadening broker authority. It su
 ### Remaining limitation
 
 Publishing is still manual until a scheduled local runner is added. The site remains owner-only, which is appropriate during development but must be deliberately changed for judge access. The option proposal is still a labeled training example, and order execution remains locked.
+
+## 2026-08-30 — Real option intelligence
+
+### What changed
+
+- Added a read-only SPY, QQQ, and IWM collector using Alpaca snapshots, daily bars, and option chains.
+- Added a realized-versus-implied move model, deterministic strategy selection, and six signal-quality checks.
+- Added a strict sanitized scan contract, protected append-only ingestion, D1 migration, and local publisher.
+- Replaced the simulated dashboard proposal with the latest real scan and inspectable abstention trace.
+
+### Why
+
+The hackathon requires options and Alpaca tooling, but a useful product also needs to distinguish a measurable opportunity from a plausible story. The scanner creates that evidence while keeping execution locked.
+
+### Strength and use
+
+The same feature supports the hackathon demonstration, a pre-trade watchlist, and a growing dataset of candidates and rejected setups. Recording abstentions makes it possible to test whether the filters help rather than judging only selected trades.
+
+### Verification
+
+- Eighteen automated tests pass.
+- Lint, TypeScript, and the production build pass.
+- The database migration was generated and inspected.
+- The scanner enforces paper mode and never calls an order command.
+
+### Remaining limitation
+
+Exact contract-leg construction, risk sizing, order preview, scheduling, and session analytics remain. A future Vercel deployment also needs a storage adapter because the current persistence implementation uses Cloudflare D1.

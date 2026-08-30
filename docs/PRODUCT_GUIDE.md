@@ -46,7 +46,27 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Filters opportunities before expensive AI reasoning or order construction.
 
-**Current limitation:** The inputs are not yet connected to live Alpaca option-chain data.
+**Current limitation:** The first model uses historical close-to-close volatility and the at-the-money straddle. It does not yet include event forecasts, volatility surfaces, skew, or transaction-cost calibration.
+
+### Real option intelligence scan
+
+**Purpose:** Read SPY, QQQ, and IWM market data through the authenticated Alpaca CLI, estimate a model move to the target Friday, measure the option-implied move from the nearest quoted call/put pair, and select a defined-risk strategy or abstain.
+
+**Strengths:** Uses broker-sourced evidence rather than demo numbers; keeps raw chains and credentials local; records all six signal checks; fails closed when the market, history, quote pair, liquidity, freshness, or edge is inadequate.
+
+**Uses:** Pre-market watchlist preparation, intraday opportunity filtering, comparing realized and implied volatility, and building a dataset of both selected and rejected opportunities.
+
+**Current limitation:** A selected strategy is not yet a fully specified trade. Contract legs, limit price, maximum loss, portfolio overlap, and deterministic risk approval must exist before any order preview.
+
+### Six-check signal trace
+
+**Purpose:** Explain whether market session, model history, ATM pairing, execution quality, quote freshness, and strategy edge passed for each scan.
+
+**Strengths:** Makes abstention diagnosable and separates a data-quality failure from a lack of trading edge.
+
+**Uses:** Decide whether to investigate a setup, diagnose stale feeds, and review which filter prevented low-quality trades.
+
+**Current limitation:** These are signal checks, not the twelve portfolio-risk gates. Passing them only creates a candidate for the next stage.
 
 ### Twelve-gate risk governor
 
@@ -56,7 +76,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade approval, incident analysis, and judge-facing explanation.
 
-**Current limitation:** The dashboard now uses real account telemetry, but the governor's displayed twelve-gate decision is still a labeled training example until the option scanner supplies live proposals.
+**Current limitation:** The governor is intentionally not invoked by a scan alone. It requires concrete option legs and a calculated maximum loss, which are part of the next milestone.
 
 ### Alpaca CLI safety boundary
 
@@ -106,7 +126,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade review, demonstrations, post-trade analysis, and debugging.
 
-**Current limitation:** The displayed proposal is explicitly labeled as a training example rather than generated from a live scan.
+**Current limitation:** The current trace explains signal eligibility. A second trace will show the twelve portfolio-risk gates once position construction exists.
 
 ### Agent pause and execution lock
 

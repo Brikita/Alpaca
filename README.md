@@ -9,6 +9,8 @@ VolGuard is an autonomous, risk-governed options agent for the Alpaca AI Trading
 - Twelve deterministic risk gates
 - Alpaca CLI boundary with a paper-only assertion and execution lock
 - Sanitized read-only Alpaca account snapshot
+- Real SPY/QQQ/IWM option intelligence with explicit abstention
+- Protected append-only scan evidence for the hosted dashboard
 - Automated strategy, risk, and safety tests
 
 ## Run the dashboard
@@ -30,6 +32,14 @@ Collect a sanitized read-only paper snapshot:
 npm run snapshot:alpaca
 ```
 
+Collect a paper-only option scan and publish it when the local environment is configured:
+
+```powershell
+npm run scan:options
+```
+
+The scanner compares a recent realized-volatility model with the current at-the-money call-plus-put price, then enforces market-session, history, paired-quote, liquidity, freshness, and edge checks. A candidate is analysis only; it is not an order.
+
 ## Connect Alpaca paper trading
 
 1. Install the official Alpaca CLI and verify `alpaca version`.
@@ -39,6 +49,8 @@ npm run snapshot:alpaca
 5. Set `VOLGUARD_EXECUTION_ENABLED=paper` only when the fresh competition account and every risk gate have been verified.
 
 The adapter passes CLI arguments without a shell, forces paper routing in the child process, expects structured JSON, and blocks mutating commands unless the explicit paper execution lock is open.
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) before moving the dashboard to Vercel or attaching a portfolio subdomain. The current hosted persistence adapter uses Cloudflare D1 and needs an explicit Vercel storage replacement.
 
 ## Safety
 

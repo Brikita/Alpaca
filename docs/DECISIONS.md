@@ -107,3 +107,39 @@
 **Impact:** Operators and judges can distinguish real broker telemetry from the labeled strategy demonstration.
 
 **Trade-off:** A first visit looks less dramatic until the publisher has completed a sync.
+
+## ADR-010 — Model move and implied move remain separate measurements
+
+**Status:** Accepted
+
+**Decision:** Estimate the target-expiry model move from recent close-to-close realized volatility and estimate the market-implied move from the nearest same-strike call and put midpoints.
+
+**Reasoning:** The comparison is transparent, reproducible, and available from the Alpaca data required by the hackathon. A language model does not invent either number.
+
+**Impact:** VolGuard can identify relatively rich or cheap volatility and explain the evidence behind the classification.
+
+**Trade-off:** This baseline omits event-specific forecasts, volatility skew, term structure, and calibrated transaction costs. Those should be added only with measurable validation.
+
+## ADR-011 — A signal is not a trade proposal
+
+**Status:** Accepted
+
+**Decision:** Do not run the twelve-gate portfolio governor until a position constructor has selected exact contracts, quantity, limit price, and theoretical maximum loss.
+
+**Reasoning:** A strategy label such as “iron condor” does not define risk. Treating it as executable would create false precision.
+
+**Impact:** The dashboard clearly labels candidates as observation-only and shows signal checks separately from portfolio-risk checks.
+
+**Trade-off:** The product reaches autonomous execution later, but every approval stage has the evidence it actually needs.
+
+## ADR-012 — Keep raw option chains local
+
+**Status:** Accepted
+
+**Decision:** Publish a compact sanitized scan batch rather than raw Alpaca option-chain payloads or contract records.
+
+**Reasoning:** The hosted dashboard needs decision evidence, not the full broker response. Data minimization reduces exposure and keeps storage portable.
+
+**Impact:** A future Vercel frontend can consume the same scan contract after its persistence adapter is replaced.
+
+**Trade-off:** Detailed surface research must be performed locally or added through a deliberately versioned analytics schema.

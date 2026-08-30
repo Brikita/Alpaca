@@ -8,6 +8,7 @@ This directory is the living explanation of VolGuard. It documents not only what
 - [Trading routine](TRADING_ROUTINE.md) — the repeatable workflow VolGuard is intended to support.
 - [Decision records](DECISIONS.md) — important product and risk choices, including rejected alternatives.
 - [Build journal](BUILD_JOURNAL.md) — chronological implementation notes and verification evidence.
+- [Deployment guide](DEPLOYMENT.md) — current Sites architecture and the safe path to a Vercel portfolio subdomain.
 
 ## How every new feature will be documented
 

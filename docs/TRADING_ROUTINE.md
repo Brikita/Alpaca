@@ -39,6 +39,17 @@ Begin with SPY, QQQ, and IWM. Add individual names only after the ETF process is
 
 **Reasoning:** A small liquid universe makes execution and attribution easier to evaluate.
 
+Run `npm run scan:options` only as an observation step. For each symbol, read the six-check trace in order:
+
+1. Market session: closed markets are observation-only.
+2. Historical model: insufficient clean bars invalidate the comparison.
+3. ATM pair: both a call and put must have usable quotes at the same strike.
+4. Execution quality: wide spreads or low combined volume make the apparent edge unreliable.
+5. Freshness: stale quotes cannot support an entry decision.
+6. Strategy edge: the implied/model relationship must clear an explicit threshold.
+
+An abstention is a completed decision, not a failed run. Record why it abstained; do not weaken a gate merely to create activity.
+
 ### 5. Form a falsifiable thesis
 
 Every proposal must state:
@@ -49,6 +60,8 @@ Every proposal must state:
 - Conditions required for entry
 - A specific invalidation condition
 - Planned profit, loss, and time exits
+
+The option scan supplies a market hypothesis, expiration, ATM evidence, and suggested strategy family. It does not supply the final legs or maximum loss. Constructing those is a separate step so signal excitement cannot bypass sizing.
 
 ### 6. Run the agent council
 
