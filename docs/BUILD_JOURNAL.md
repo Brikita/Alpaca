@@ -131,3 +131,20 @@ The same feature supports the hackathon demonstration, a pre-trade watchlist, an
 ### Remaining limitation
 
 Exact contract-leg construction, risk sizing, order preview, scheduling, and session analytics remain. A future Vercel deployment also needs a storage adapter because the current persistence implementation uses Cloudflare D1.
+
+## 2026-08-30 — Dependency security refresh
+
+### What changed
+
+- Updated React, Vinext, Vite, the Cloudflare build toolchain, and their required peers to patched compatible releases.
+- Added the JSON import attribute required by the updated Vite configuration loader.
+
+### Why
+
+The final audit found high-severity advisories in both runtime and build dependencies. A public hackathon repository should not knowingly ship fixable high-severity findings.
+
+### Verification
+
+- Nineteen tests, lint, TypeScript, and the production Vinext build pass after the update.
+- `npm audit --omit=dev` reports zero production vulnerabilities.
+- The full audit retains four moderate findings in Drizzle Kit's legacy development-only esbuild loader. The offered automatic fix is a breaking downgrade, so it was not applied.
