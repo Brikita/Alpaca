@@ -6,9 +6,12 @@ const SAFE_READ_COMMANDS = new Set([
   'clock',
   'position list',
   'order list',
+  'data snapshot',
+  'data bars',
   'data option chain',
   'data option snapshot',
   'data news',
+  'option contracts',
 ]);
 
 export interface AlpacaCliResult<T> {
