@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
-import type { TradeProposal } from '../lib/domain';
-import { evaluateProposal } from '../lib/risk-governor';
+import type { OptionScan, OptionScanBatch } from '../lib/option-intelligence';
 
 const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
 const STARTING_EQUITY = 100_000;
@@ -37,63 +36,54 @@ function ageLabel(value: string | undefined): string {
   return `${Math.floor(seconds / 3600)}h ago`;
 }
 
-const agents = [
-  { name: 'Regime', verdict: 'Approve', note: 'Event-driven · 82%', tone: 'positive' },
-  { name: 'Volatility', verdict: 'Approve', note: 'Implied move rich', tone: 'positive' },
-  { name: 'Catalyst', verdict: 'Caution', note: 'Payrolls in 4 days', tone: 'warning' },
-  { name: 'Red team', verdict: 'Cleared', note: 'Risk remains defined', tone: 'neutral' },
-];
+function strategyLabel(strategy: OptionScan['strategy'] | undefined): string {
+  const labels: Record<OptionScan['strategy'], string> = {
+    iron_condor: 'Defined-risk iron condor',
+    long_straddle: 'Long straddle',
+    bull_call_spread: 'Bull call spread',
+    bear_put_spread: 'Bear put spread',
+    abstain: 'No trade · abstain',
+  };
+  return strategy ? labels[strategy] : 'Awaiting real scan';
+}
 
-const demoProposal: TradeProposal = {
-  id: 'spy-iron-condor-20260828-1430',
-  symbol: 'SPY',
-  strategy: 'iron_condor',
-  maxLoss: 420,
-  definedRisk: true,
-  nakedShort: false,
-  expiresToday: false,
-  paperAccount: true,
-  spreadPct: 0.06,
-  quoteAgeSeconds: 8,
-  correlationSlotsAfter: 1,
-  confidence: 0.76,
-  votes: [
-    { agent: 'regime', approved: true, confidence: 0.82, rationale: 'Event-driven regime' },
-    { agent: 'volatility', approved: true, confidence: 0.78, rationale: 'Implied move is rich' },
-    { agent: 'catalyst', approved: false, confidence: 0.62, rationale: 'Payroll event ahead' },
-    { agent: 'red_team', approved: true, confidence: 0.71, rationale: 'Every loss boundary is defined' },
-  ],
-};
+function scanMetric(value: number | null | undefined, suffix = '%'): string {
+  return value === null || value === undefined ? '—' : `${value.toFixed(2)}${suffix}`;
+}
 
-const riskDecision = evaluateProposal(demoProposal, {
-  openRisk: 920,
-  dailyDrawdown: 180,
-  competitionDrawdown: 0,
-});
+function moveMetric(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : `±${value.toFixed(2)}%`;
+}
 
 export default function Home() {
   const [traceOpen, setTraceOpen] = useState(false);
   const [agentRunning, setAgentRunning] = useState(true);
   const [snapshot, setSnapshot] = useState<AlpacaSnapshot | null>(null);
+  const [scanBatch, setScanBatch] = useState<OptionScanBatch | null>(null);
   const [telemetryError, setTelemetryError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    async function refreshTelemetry() {
+    async function refreshDashboard() {
       try {
-        const response = await fetch('/api/telemetry', { cache: 'no-store' });
-        if (!response.ok) throw new Error('Telemetry unavailable');
-        const payload = (await response.json()) as { snapshot: AlpacaSnapshot | null };
+        const [telemetryResponse, scanResponse] = await Promise.all([
+          fetch('/api/telemetry', { cache: 'no-store' }),
+          fetch('/api/scans', { cache: 'no-store' }),
+        ]);
+        if (!telemetryResponse.ok || !scanResponse.ok) throw new Error('Dashboard data unavailable');
+        const telemetryPayload = (await telemetryResponse.json()) as { snapshot: AlpacaSnapshot | null };
+        const scanPayload = (await scanResponse.json()) as { batch: OptionScanBatch | null };
         if (active) {
-          setSnapshot(payload.snapshot);
+          setSnapshot(telemetryPayload.snapshot);
+          setScanBatch(scanPayload.batch);
           setTelemetryError(false);
         }
       } catch {
         if (active) setTelemetryError(true);
       }
     }
-    void refreshTelemetry();
-    const timer = window.setInterval(refreshTelemetry, 30_000);
+    void refreshDashboard();
+    const timer = window.setInterval(refreshDashboard, 30_000);
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -111,6 +101,12 @@ export default function Home() {
   const accountReady = Boolean(
     snapshot && snapshot.account.status === 'ACTIVE' && !snapshot.account.accountBlocked && !snapshot.account.tradingBlocked,
   );
+  const leader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
+  const passedSignalChecks = leader?.checks.filter((check) => check.passed).length ?? 0;
+  const candidate = leader?.status === 'candidate';
+  const decisionHeading = leader
+    ? candidate ? `${leader.symbol} cleared every signal gate` : `${leader.symbol} correctly abstained`
+    : 'Waiting for the first real option scan';
 
   return (
     <main className="app-shell">
@@ -185,37 +181,46 @@ export default function Home() {
           <article className="decision-card" id="decisions">
             <div className="card-heading">
               <div>
-                <p className="eyebrow">SIMULATED DECISION · TRAINING EXAMPLE</p>
-                <h2>SPY volatility is overpriced</h2>
+                <p className="eyebrow">REAL ALPACA SCAN · OBSERVATION ONLY</p>
+                <h2>{decisionHeading}</h2>
               </div>
-              <span className="confidence">76% confidence</span>
+              <span className={`confidence ${candidate ? '' : 'abstain'}`}>
+                {candidate ? `${Math.round((leader?.confidence ?? 0) * 100)}% signal confidence` : 'NO TRADE'}
+              </span>
             </div>
 
             <div className="strategy-row">
-              <div className="ticker-badge">SPY</div>
+              <div className="ticker-badge">{leader?.symbol ?? '—'}</div>
               <div>
-                <small>PROPOSED STRATEGY</small>
-                <h3>Defined-risk iron condor</h3>
+                <small>SIGNAL OUTCOME</small>
+                <h3>{strategyLabel(leader?.strategy)}</h3>
               </div>
-              <div className="strategy-stat"><small>MODEL MOVE</small><b>±0.74%</b></div>
-              <div className="strategy-stat"><small>IMPLIED MOVE</small><b>±1.18%</b></div>
-              <div className="strategy-stat"><small>MAX LOSS</small><b>$420</b></div>
+              <div className="strategy-stat"><small>MODEL MOVE</small><b>{moveMetric(leader?.modelMovePct)}</b></div>
+              <div className="strategy-stat"><small>IMPLIED MOVE</small><b>{moveMetric(leader?.impliedMovePct)}</b></div>
+              <div className="strategy-stat"><small>WIDEST SPREAD</small><b>{scanMetric(leader?.spreadPct === null || leader?.spreadPct === undefined ? null : leader.spreadPct * 100)}</b></div>
             </div>
 
-            <p className="thesis">Options imply a move 59% wider than VolGuard’s event-adjusted range. Momentum is neutral, liquidity is healthy, and every loss boundary is known before entry.</p>
+            <p className="thesis">
+              {leader?.thesis ?? 'Run the local read-only collector to compare realized volatility with the live at-the-money options straddle.'}
+              {' '}Risk sizing is intentionally deferred until concrete option legs and a defined maximum loss exist.
+            </p>
 
             <div className="agent-grid">
-              {agents.map((agent) => (
-                <div className="agent" key={agent.name}>
-                  <div className={`agent-icon ${agent.tone}`}>{agent.name.charAt(0)}</div>
-                  <div><small>{agent.name}</small><b>{agent.verdict}</b><p>{agent.note}</p></div>
+              {(scanBatch?.scans ?? []).map((scan) => {
+                const passed = scan.checks.filter((check) => check.passed).length;
+                return (
+                <div className="agent" key={scan.symbol}>
+                  <div className={`agent-icon ${scan.status === 'candidate' ? 'positive' : scan.status === 'abstain' ? 'warning' : ''}`}>{scan.symbol.charAt(0)}</div>
+                  <div><small>{scan.symbol} · {scan.expiration}</small><b>{scan.status.toUpperCase()}</b><p>{passed}/6 checks · {strategyLabel(scan.strategy)}</p></div>
                 </div>
-              ))}
+                );
+              })}
+              {!scanBatch && <div className="agent waiting-scan"><div className="agent-icon">·</div><div><small>SCAN UNIVERSE</small><b>SPY · QQQ · IWM</b><p>No synthetic market data is shown</p></div></div>}
             </div>
 
             <div className="decision-foot">
-              <span><i />Passed {riskDecision.passed}/{riskDecision.total} deterministic gates</span>
-              <button type="button" onClick={() => setTraceOpen(true)}>View decision trace <b>→</b></button>
+              <span><i />Passed {passedSignalChecks}/6 signal checks · risk governor pending</span>
+              <button type="button" disabled={!leader} onClick={() => setTraceOpen(true)}>View decision trace <b>→</b></button>
             </div>
           </article>
 
@@ -235,11 +240,11 @@ export default function Home() {
         <footer className="statusbar">
           <span>VOLGUARD AI <b>v0.1.0</b></span>
           <span>Educational paper-trading system · No real capital</span>
-          <span>Last sync <b>{ageLabel(snapshot?.capturedAt)}</b></span>
+          <span>Account <b>{ageLabel(snapshot?.capturedAt)}</b> · Scan <b>{ageLabel(scanBatch?.capturedAt)}</b></span>
         </footer>
       </section>
 
-      {traceOpen && (
+      {traceOpen && leader && (
         <div className="dialog-backdrop" role="presentation" onMouseDown={() => setTraceOpen(false)}>
           <section
             className="trace-dialog"
@@ -249,12 +254,12 @@ export default function Home() {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="trace-head">
-              <div><p className="eyebrow">DECISION TRACE · {demoProposal.id}</p><h2 id="trace-title">Why this trade passed</h2></div>
+              <div><p className="eyebrow">DECISION TRACE · {leader.symbol} · {leader.capturedAt}</p><h2 id="trace-title">Why VolGuard {candidate ? 'selected a candidate' : 'abstained'}</h2></div>
               <button type="button" onClick={() => setTraceOpen(false)} aria-label="Close decision trace">×</button>
             </div>
-            <p className="trace-summary">The AI council can propose a trade, but it cannot override these rules. A single failed gate blocks execution.</p>
+            <p className="trace-summary">These checks turn market data into a signal, not an order. A single failed check forces abstention; a candidate must still pass position construction and every deterministic portfolio-risk gate.</p>
             <div className="gate-list">
-              {riskDecision.gates.map((item, index) => (
+              {leader.checks.map((item, index) => (
                 <div className="gate" key={item.id}>
                   <span className={item.passed ? 'pass' : 'fail'}>{item.passed ? '✓' : '×'}</span>
                   <div><small>GATE {String(index + 1).padStart(2, '0')}</small><b>{item.label}</b></div>
@@ -262,7 +267,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className="trace-foot"><span>Outcome</span><strong>{riskDecision.approved ? 'APPROVED FOR PAPER' : 'BLOCKED'}</strong></div>
+            <div className="trace-foot"><span>Signal outcome</span><strong>{candidate ? 'CANDIDATE · NOT AN ORDER' : 'ABSTAIN'}</strong></div>
           </section>
         </div>
       )}

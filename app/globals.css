@@ -54,6 +54,7 @@ button, a { font: inherit; }
 .card-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
 .card-heading h2 { margin:0; font-size:20px; font-weight:570; letter-spacing:-.035em; }
 .confidence { padding:6px 8px; color:#4e5a23; background:#eef6c7; border:1px solid #d9e799; border-radius:4px; font:650 9px var(--font-geist-mono); }
+.confidence.abstain { color:#696d66; background:#efefe8; border-color:#d9dad2; }
 .strategy-row { margin-top:25px; display:grid; grid-template-columns:auto minmax(185px,1fr) repeat(3,auto); align-items:center; gap:19px; padding:17px 18px; background:#f0f0e9; border:1px solid #e2e2d9; }
 .ticker-badge { width:43px; height:43px; display:grid; place-items:center; color:#eef1e8; background:#252b23; border-radius:4px; font:700 12px var(--font-geist-mono); }
 .strategy-row small,.strategy-stat small { display:block; margin-bottom:5px; color:#8a8e86; font:650 8px var(--font-geist-mono); letter-spacing:.08em; }
@@ -61,7 +62,7 @@ button, a { font: inherit; }
 .strategy-stat { padding-left:17px; border-left:1px solid #d7d8cf; }
 .strategy-stat b { font:620 12px var(--font-geist-mono); }
 .thesis { margin:20px 0 19px; max-width:760px; color:#666b63; font-size:12px; line-height:1.65; }
-.agent-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.agent-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 .agent { min-width:0; padding:13px 11px; display:flex; gap:10px; border:1px solid #e0e1d9; background:#f8f7f2; }
 .agent-icon { flex:0 0 26px; height:26px; display:grid; place-items:center; border-radius:50%; background:#e7e8df; color:#6e746b; font:700 10px var(--font-geist-mono); }
 .agent-icon.positive { color:#315d48; background:#dfeee5; }
@@ -74,6 +75,7 @@ button, a { font: inherit; }
 .decision-foot span i { width:5px; height:5px; border-radius:50%; background:#77a257; }
 .decision-foot button { padding:7px 10px; color:#20251f; background:transparent; border:0; cursor:pointer; font-size:10px; font-weight:650; }
 .decision-foot button:hover { background:#ecece4; }
+.decision-foot button:disabled { color:#999d95; cursor:not-allowed; background:transparent; }
 .decision-foot button b { margin-left:7px; }
 .risk-card { padding:27px 24px 22px; display:flex; flex-direction:column; }
 .shield { width:27px; height:30px; display:grid; place-items:center; color:#526128; background:var(--acid); border-radius:12px 12px 15px 15px; font:800 11px var(--font-geist-mono); }
