@@ -8,6 +8,13 @@
       "when": 1788034951029,
       "tag": "0000_boring_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788100031901,
+      "tag": "0001_melted_james_howlett",
+      "breakpoints": true
     }
   ]
 }

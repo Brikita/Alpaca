@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import type { AlpacaSnapshot } from './alpaca-snapshot.ts';
+import type { OptionScanBatch } from './option-intelligence.ts';
 
 interface VolGuardEnvironment {
   DB: D1Database;
@@ -23,6 +24,23 @@ const CREATE_CAPTURED_AT_INDEX_SQL = `
   ON telemetry_snapshots(captured_at)
 `;
 
+const CREATE_OPTION_SCAN_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS option_scan_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    schema_version INTEGER NOT NULL,
+    captured_at TEXT NOT NULL UNIQUE,
+    received_at TEXT NOT NULL,
+    leader_symbol TEXT,
+    candidate_count INTEGER NOT NULL,
+    payload_json TEXT NOT NULL
+  )
+`;
+
+const CREATE_OPTION_SCAN_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_option_scan_batches_captured_at
+  ON option_scan_batches(captured_at)
+`;
+
 function bindings(): VolGuardEnvironment {
   return env as unknown as VolGuardEnvironment;
 }
@@ -31,6 +49,8 @@ async function ensureTelemetrySchema(database: D1Database): Promise<void> {
   await database.batch([
     database.prepare(CREATE_TABLE_SQL),
     database.prepare(CREATE_CAPTURED_AT_INDEX_SQL),
+    database.prepare(CREATE_OPTION_SCAN_TABLE_SQL),
+    database.prepare(CREATE_OPTION_SCAN_INDEX_SQL),
   ]);
 }
 
@@ -71,4 +91,39 @@ export async function latestTelemetrySnapshot(): Promise<AlpacaSnapshot | null> 
     `)
     .first<{ payload_json: string }>();
   return row ? (JSON.parse(row.payload_json) as AlpacaSnapshot) : null;
+}
+
+export async function saveOptionScanBatch(batch: OptionScanBatch): Promise<void> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  await database
+    .prepare(`
+      INSERT INTO option_scan_batches (
+        schema_version, captured_at, received_at, leader_symbol, candidate_count, payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(captured_at) DO NOTHING
+    `)
+    .bind(
+      batch.schemaVersion,
+      batch.capturedAt,
+      new Date().toISOString(),
+      batch.leaderSymbol,
+      batch.candidateCount,
+      JSON.stringify(batch),
+    )
+    .run();
+}
+
+export async function latestOptionScanBatch(): Promise<OptionScanBatch | null> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  const row = await database
+    .prepare(`
+      SELECT payload_json
+      FROM option_scan_batches
+      ORDER BY captured_at DESC
+      LIMIT 1
+    `)
+    .first<{ payload_json: string }>();
+  return row ? (JSON.parse(row.payload_json) as OptionScanBatch) : null;
 }

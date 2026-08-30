@@ -1,4 +1,4 @@
-import { runAlpaca } from './alpaca-cli.ts';
+import { runAlpaca, type AlpacaEnvironment } from './alpaca-cli.ts';
 import {
   buildOptionScan,
   buildUnavailableScan,
@@ -39,7 +39,7 @@ async function collectSymbol(
   capturedAt: string,
   expiration: string,
   marketOpen: boolean,
-  environment: NodeJS.ProcessEnv,
+  environment: AlpacaEnvironment,
 ): Promise<OptionScan> {
   try {
     const stock = (await runAlpaca<StockSnapshot>(['data', 'snapshot', '--symbol', symbol], environment)).data;
@@ -77,7 +77,7 @@ async function collectSymbol(
 
 export async function collectOptionScanBatch(
   universe: readonly string[] = DEFAULT_OPTION_UNIVERSE,
-  environment: NodeJS.ProcessEnv = process.env,
+  environment: AlpacaEnvironment = process.env,
   now = new Date(),
 ): Promise<OptionScanBatch> {
   const safeEnvironment = { ...environment, ALPACA_LIVE_TRADE: 'false' };

@@ -21,7 +21,7 @@ const snapshot: AlpacaSnapshot = {
 
 test('publishes with separate ingest and private-site authorization', async (context) => {
   let capturedHeaders: Headers | undefined;
-  context.mock.method(globalThis, 'fetch', async (_input, init) => {
+  context.mock.method(globalThis, 'fetch', async (_input: RequestInfo | URL, init?: RequestInit) => {
     capturedHeaders = new Headers(init?.headers);
     return new Response(null, { status: 202 });
   });

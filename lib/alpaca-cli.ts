@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 
+export type AlpacaEnvironment = Record<string, string | undefined>;
+
 const SAFE_READ_COMMANDS = new Set([
   'account get',
   'account portfolio',
@@ -19,7 +21,7 @@ export interface AlpacaCliResult<T> {
   stderr: string;
 }
 
-export function assertPaperEnvironment(environment: NodeJS.ProcessEnv = process.env): void {
+export function assertPaperEnvironment(environment: AlpacaEnvironment = process.env): void {
   if (environment.ALPACA_LIVE_TRADE?.toLowerCase() === 'true') {
     throw new Error('VolGuard refuses to run while ALPACA_LIVE_TRADE=true.');
   }
@@ -27,7 +29,7 @@ export function assertPaperEnvironment(environment: NodeJS.ProcessEnv = process.
 
 export function assertCommandAllowed(
   args: string[],
-  environment: NodeJS.ProcessEnv = process.env,
+  environment: AlpacaEnvironment = process.env,
 ): void {
   assertPaperEnvironment(environment);
   const command = args.slice(0, Math.min(args.length, 3)).join(' ');
@@ -52,21 +54,22 @@ export function assertCommandAllowed(
 
 export async function runAlpaca<T>(
   args: string[],
-  environment: NodeJS.ProcessEnv = process.env,
+  environment: AlpacaEnvironment = process.env,
   timeoutMs = 30_000,
 ): Promise<AlpacaCliResult<T>> {
   assertCommandAllowed(args, environment);
 
   return new Promise((resolve, reject) => {
+    const childEnvironment = {
+      ...environment,
+      ALPACA_LIVE_TRADE: 'false',
+      ALPACA_OUTPUT: 'json',
+      ALPACA_QUIET: 'true',
+    } as unknown as NodeJS.ProcessEnv;
     const child = spawn(environment.ALPACA_CLI_PATH ?? 'alpaca', [...args, '--quiet'], {
       shell: false,
       windowsHide: true,
-      env: {
-        ...environment,
-        ALPACA_LIVE_TRADE: 'false',
-        ALPACA_OUTPUT: 'json',
-        ALPACA_QUIET: 'true',
-      },
+      env: childEnvironment,
     });
 
     let stdout = '';
