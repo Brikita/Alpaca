@@ -50,13 +50,13 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 ### Real option intelligence scan
 
-**Purpose:** Read SPY, QQQ, and IWM market data through the authenticated Alpaca CLI, estimate a model move to the target Friday, measure the option-implied move from the nearest quoted call/put pair, and select a defined-risk strategy or abstain.
+**Purpose:** Read SPY, QQQ, IWM, and GLD market data through the authenticated Alpaca CLI, estimate a model move to the target Friday, measure the option-implied move from the nearest quoted call/put pair, and select a defined-risk strategy or abstain.
 
 **Strengths:** Uses broker-sourced evidence rather than demo numbers; requests the subscription-compatible IEX feed for stock history; keeps raw chains and credentials local; records all six signal checks; fails closed when the market, history, quote pair, liquidity, freshness, or edge is inadequate.
 
 **Uses:** Pre-market watchlist preparation, intraday opportunity filtering, comparing realized and implied volatility, and building a dataset of both selected and rejected opportunities.
 
-**Current limitation:** A selected strategy is not yet a fully specified trade. Contract legs, limit price, maximum loss, portfolio overlap, and deterministic risk approval must exist before any order preview.
+**Current limitation:** A selected strategy is still only a signal. Exact legs, limit prices, maximum loss, portfolio overlap, and deterministic risk approval must exist before any order preview.
 
 ### Six-check signal trace
 
@@ -72,11 +72,11 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Purpose:** Turn an eligible strategy signal into explicit option symbols, quantity, quoted debit, and theoretical maximum loss before portfolio approval.
 
-**Strengths:** Risk is calculated from real contract prices rather than a strategy label. Long straddles are fully defined; strategies requiring protective wings fail closed until those additional contracts are selected.
+**Strengths:** Risk is calculated from real contract prices rather than a strategy label. Long straddles are fully defined, and the wing optimizer can convert an oversized two-sided volatility signal into a four-leg reverse iron butterfly. Its maximum debit uses conservative buy-at-ask and sell-at-bid prices rather than optimistic midpoints.
 
 **Uses:** Enforce the per-trade budget, create an auditable order preview, and explain why a market opportunity may still be unaffordable.
 
-**Current limitation:** Only long-straddle construction is complete. Vertical spreads and iron condors need a wing-selection optimizer before they can become proposals.
+**Current limitation:** The first optimizer release supports long-straddle signals only. Directional vertical spreads and short-volatility iron condors still fail closed. Multi-leg order preview and live open-risk aggregation are not implemented.
 
 ### Twelve-gate risk governor
 
@@ -86,7 +86,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade approval, incident analysis, and judge-facing explanation.
 
-**Current limitation:** The governor is intentionally not invoked by a scan alone. It requires concrete option legs and a calculated maximum loss, which are part of the next milestone.
+**Current limitation:** The governor is invoked only after concrete construction. The agent council is not implemented yet, so even a budget-compliant structure remains blocked at that final gate.
 
 ### Alpaca CLI safety boundary
 
@@ -136,7 +136,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade review, demonstrations, post-trade analysis, and debugging.
 
-**Current limitation:** The current trace explains signal eligibility. A second trace will show the twelve portfolio-risk gates once position construction exists.
+**Current limitation:** The trace now shows signal checks, exact legs, conservative limit prices, and all twelve portfolio-risk gates. Agent rationales and order-preview evidence will be added with the council milestone.
 
 ### Agent pause and execution lock
 

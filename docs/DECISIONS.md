@@ -136,13 +136,13 @@
 
 **Status:** Accepted
 
-**Decision:** Publish a compact sanitized scan batch rather than raw Alpaca option-chain payloads or contract records.
+**Decision:** Publish a compact sanitized scan batch rather than raw Alpaca option-chain payloads. Persist bounded contract-level quotes only for fully eligible candidates that require exact wing construction.
 
 **Reasoning:** The hosted dashboard needs decision evidence, not the full broker response. Data minimization reduces exposure and keeps storage portable.
 
-**Impact:** A future Vercel frontend can consume the same scan contract after its persistence adapter is replaced.
+**Impact:** The position constructor can reproduce exact candidate sizing without exposing brokerage identity or persisting irrelevant chains. Candidate quote arrays are capped at 200 validated records per symbol.
 
-**Trade-off:** Detailed surface research must be performed locally or added through a deliberately versioned analytics schema.
+**Trade-off:** Abstentions retain decision evidence but no contract surface. Detailed surface research must be performed locally or added through a deliberately versioned analytics schema.
 
 ## ADR-013 — Position risk is calculated before agent persuasion
 
@@ -155,3 +155,15 @@
 **Impact:** The first live QQQ long-straddle signal was correctly blocked at $1,089 maximum loss against a $500 limit, even though all six signal checks passed.
 
 **Trade-off:** Some valid forecasts cannot be traded until a lower-cost defined-risk structure is available.
+
+## ADR-014 — Preserve the thesis when optimizing price
+
+**Status:** Accepted
+
+**Decision:** When a neutral long-volatility signal exceeds the $500 risk budget, preserve its two-sided exposure with a reverse iron butterfly instead of silently converting it into a bullish or bearish vertical. Select covered wings near the modeled move and calculate the debit using buy-at-ask and sell-at-bid limits.
+
+**Reasoning:** Affordability is not permission to change the forecast. A one-direction spread would make a cheaper trade by introducing a different thesis. Conservative executable-side prices also reduce the chance that a midpoint-only structure appears affordable but cannot be filled within policy.
+
+**Impact:** VolGuard can search for a four-leg, defined-risk structure with a worst-case debit no greater than $500 while keeping the original volatility hypothesis auditable.
+
+**Trade-off:** The wings cap profit and add complex-order execution and expiration pin risk. The optimizer therefore cannot authorize an order; freshness, portfolio gates, council approval, and a single complex-order preview still remain mandatory.

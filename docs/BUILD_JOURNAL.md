@@ -170,3 +170,27 @@ The final audit found high-severity advisories in both runtime and build depende
 ### Operational incident
 
 The newest hosting build returned D1 timeouts. VolGuard was rolled back to the last known-good private release, endpoint health returned to 200, and telemetry publishing succeeded. The source build stack is being kept compatible until the newer D1 regression is resolved.
+
+## 2026-08-31 — Risk-budget wing optimizer
+
+### What changed
+
+- Added a four-leg reverse-iron-butterfly constructor for oversized long-volatility candidates.
+- Added conservative buy-at-ask and sell-at-bid limit pricing, exact maximum loss, the smaller capped wing profit, and model-move-aware wing selection.
+- Added bounded, schema-validated candidate contract evidence while keeping abstention payloads compact.
+- Expanded the dashboard trace to show the exact legs, limits, construction rationale, and all twelve risk gates.
+
+### Reasoning and trading-routine impact
+
+The first QQQ and GLD candidates showed that a valid signal can be too expensive at the minimum contract quantity. The optimizer now tests whether covered wings can preserve the two-sided volatility thesis within the precommitted $500 budget. A cheaper structure still does not become an order: it must pass every remaining portfolio gate and the independent council.
+
+### Verification
+
+- Twenty-five automated tests pass, including conservative four-leg economics, the $500 sizing boundary, council blocking, payload limits, and malformed quote rejection.
+- Lint and TypeScript pass.
+- A post-close real scan published successfully and correctly abstained because the market was closed and quotes were stale.
+- The first live-market optimizer validation is deferred to the next open session; no stale quote was promoted into a candidate and no order command was invoked.
+
+### Remaining limitation
+
+Directional verticals and iron-condor construction still fail closed. The next milestone is the independent agent council, followed by a non-submitting Alpaca complex-order preview. Open-position maximum risk must be modeled before more than one position can be considered.

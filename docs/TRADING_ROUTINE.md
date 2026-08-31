@@ -35,7 +35,7 @@ Classify the session as ordinary, earnings-driven, macro-event, or abnormal-liqu
 
 ### 4. Scan a constrained universe
 
-Begin with SPY, QQQ, and IWM. Add individual names only after the ETF process is stable.
+Begin with SPY, QQQ, IWM, and GLD. GLD is the liquid, Alpaca-supported gold proxy; it is not the same instrument as spot XAUUSD.
 
 **Reasoning:** A small liquid universe makes execution and attribution easier to evaluate.
 
@@ -52,6 +52,15 @@ An abstention is a completed decision, not a failed run. Record why it abstained
 
 When a signal passes, construct the exact position before discussing execution. For a long straddle, maximum loss is the call premium plus put premium, multiplied by 100 shares and quantity. If the smallest valid contract unit exceeds the session's per-trade budget, the trade is blocked; confidence cannot resize an indivisible option contract.
 
+For an oversized two-sided volatility signal, run the wing optimizer before giving up on the thesis. It buys the ATM call and put, then searches for a liquid lower put wing and upper call wing near the modeled move. Risk is calculated conservatively by buying at each ask and selling at each bid. The resulting reverse iron butterfly is eligible only when:
+
+- Every leg is fresh, quoted, and within the 12% spread policy.
+- Each wing has at least 10 contracts of observed daily volume.
+- Worst-case net debit is $500 or less.
+- The narrower wing still produces a positive expiration profit beyond its strike.
+
+This structure preserves two-sided volatility exposure while capping both loss and profit. It introduces four-leg fill and pin risk, so never leg into it manually; the future execution step must preview one complex paper order. If no valid wing combination exists, retain the original straddle only as evidence for a deterministic risk block.
+
 ### 5. Form a falsifiable thesis
 
 Every proposal must state:
@@ -63,7 +72,7 @@ Every proposal must state:
 - A specific invalidation condition
 - Planned profit, loss, and time exits
 
-The option scan supplies a market hypothesis, expiration, ATM evidence, and suggested strategy family. It does not supply the final legs or maximum loss. Constructing those is a separate step so signal excitement cannot bypass sizing.
+The option scan supplies a market hypothesis, expiration, ATM evidence, and suggested strategy family. Candidate scans also carry a bounded set of sanitized contract quotes for sizing. Constructing the final legs and maximum loss remains a separate step so signal excitement cannot bypass sizing.
 
 ### 6. Run the agent council
 

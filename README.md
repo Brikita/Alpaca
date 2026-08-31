@@ -9,7 +9,8 @@ VolGuard is an autonomous, risk-governed options agent for the Alpaca AI Trading
 - Twelve deterministic risk gates
 - Alpaca CLI boundary with a paper-only assertion and execution lock
 - Sanitized read-only Alpaca account snapshot
-- Real SPY/QQQ/IWM option intelligence with explicit abstention
+- Real SPY/QQQ/IWM/GLD option intelligence with explicit abstention
+- Conservative four-leg wing optimization against a fixed maximum-loss budget
 - Protected append-only scan evidence for the hosted dashboard
 - Automated strategy, risk, and safety tests
 
