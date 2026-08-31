@@ -126,6 +126,7 @@ export default function Home() {
 
   return (
     <main className="app-shell">
+      <a className="skip-link" href="#overview">Skip to dashboard</a>
       <aside className="sidebar">
         <a className="brand" href="#" aria-label="VolGuard home">
           <span className="brand-mark">V</span>
