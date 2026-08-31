@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
 import type { OptionScan, OptionScanBatch } from '../lib/option-intelligence';
+import { constructPosition, toTradeProposal } from '../lib/position-constructor';
+import { evaluateProposal } from '../lib/risk-governor';
 
 const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
 const STARTING_EQUITY = 100_000;
@@ -104,8 +106,21 @@ export default function Home() {
   const leader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
   const passedSignalChecks = leader?.checks.filter((check) => check.passed).length ?? 0;
   const candidate = leader?.status === 'candidate';
+  const construction = leader ? constructPosition(leader) : null;
+  const position = construction?.status === 'constructed' ? construction.position : null;
+  const proposalDecision = position && snapshot && snapshot.positions.length === 0
+    ? evaluateProposal(toTradeProposal(position), {
+        openRisk: 0,
+        dailyDrawdown,
+        competitionDrawdown: Math.max(0, STARTING_EQUITY - snapshot.account.equity),
+      })
+    : null;
   const decisionHeading = leader
-    ? candidate ? `${leader.symbol} cleared every signal gate` : `${leader.symbol} correctly abstained`
+    ? candidate
+      ? proposalDecision && !proposalDecision.approved
+        ? `${leader.symbol} signal blocked by risk policy`
+        : `${leader.symbol} cleared every signal gate`
+      : `${leader.symbol} correctly abstained`
     : 'Waiting for the first real option scan';
 
   return (
@@ -184,8 +199,10 @@ export default function Home() {
                 <p className="eyebrow">REAL ALPACA SCAN · OBSERVATION ONLY</p>
                 <h2>{decisionHeading}</h2>
               </div>
-              <span className={`confidence ${candidate ? '' : 'abstain'}`}>
-                {candidate ? `${Math.round((leader?.confidence ?? 0) * 100)}% signal confidence` : 'NO TRADE'}
+              <span className={`confidence ${proposalDecision && !proposalDecision.approved || !candidate ? 'abstain' : ''}`}>
+                {proposalDecision && !proposalDecision.approved
+                  ? 'RISK BLOCKED'
+                  : candidate ? `${Math.round((leader?.confidence ?? 0) * 100)}% signal confidence` : 'NO TRADE'}
               </span>
             </div>
 
@@ -197,12 +214,14 @@ export default function Home() {
               </div>
               <div className="strategy-stat"><small>MODEL MOVE</small><b>{moveMetric(leader?.modelMovePct)}</b></div>
               <div className="strategy-stat"><small>IMPLIED MOVE</small><b>{moveMetric(leader?.impliedMovePct)}</b></div>
-              <div className="strategy-stat"><small>WIDEST SPREAD</small><b>{scanMetric(leader?.spreadPct === null || leader?.spreadPct === undefined ? null : leader.spreadPct * 100)}</b></div>
+              <div className="strategy-stat"><small>{position ? 'MAX LOSS' : 'WIDEST SPREAD'}</small><b>{position ? money(position.maxLoss, 0) : scanMetric(leader?.spreadPct === null || leader?.spreadPct === undefined ? null : leader.spreadPct * 100)}</b></div>
             </div>
 
             <p className="thesis">
               {leader?.thesis ?? 'Run the local read-only collector to compare realized volatility with the live at-the-money options straddle.'}
-              {' '}Risk sizing is intentionally deferred until concrete option legs and a defined maximum loss exist.
+              {' '}{position && proposalDecision
+                ? `Exact legs imply ${money(position.maxLoss)} maximum loss; the proposal passed ${proposalDecision.passed}/${proposalDecision.total} portfolio gates and remains blocked.`
+                : 'Risk sizing waits for concrete option legs and a defined maximum loss.'}
             </p>
 
             <div className="agent-grid">
@@ -215,11 +234,11 @@ export default function Home() {
                 </div>
                 );
               })}
-              {!scanBatch && <div className="agent waiting-scan"><div className="agent-icon">·</div><div><small>SCAN UNIVERSE</small><b>SPY · QQQ · IWM</b><p>No synthetic market data is shown</p></div></div>}
+              {!scanBatch && <div className="agent waiting-scan"><div className="agent-icon">·</div><div><small>SCAN UNIVERSE</small><b>SPY · QQQ · IWM · GLD</b><p>No synthetic market data is shown</p></div></div>}
             </div>
 
             <div className="decision-foot">
-              <span><i />Passed {passedSignalChecks}/6 signal checks · risk governor pending</span>
+              <span><i />Passed {passedSignalChecks}/6 signal checks{proposalDecision ? ` · ${proposalDecision.passed}/12 risk gates` : ' · risk governor pending'}</span>
               <button type="button" disabled={!leader} onClick={() => setTraceOpen(true)}>View decision trace <b>→</b></button>
             </div>
           </article>

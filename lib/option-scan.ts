@@ -19,7 +19,7 @@ interface BarsResponse {
   bars?: PriceBar[];
 }
 
-export const DEFAULT_OPTION_UNIVERSE = ['SPY', 'QQQ', 'IWM'] as const;
+export const DEFAULT_OPTION_UNIVERSE = ['SPY', 'QQQ', 'IWM', 'GLD'] as const;
 
 export function describeCollectorError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
