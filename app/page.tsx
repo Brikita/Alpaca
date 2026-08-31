@@ -41,6 +41,7 @@ function ageLabel(value: string | undefined): string {
 function strategyLabel(strategy: OptionScan['strategy'] | undefined): string {
   const labels: Record<OptionScan['strategy'], string> = {
     iron_condor: 'Defined-risk iron condor',
+    long_iron_butterfly: 'Budgeted long iron butterfly',
     long_straddle: 'Long straddle',
     bull_call_spread: 'Bull call spread',
     bear_put_spread: 'Bear put spread',
@@ -210,7 +211,7 @@ export default function Home() {
               <div className="ticker-badge">{leader?.symbol ?? '—'}</div>
               <div>
                 <small>SIGNAL OUTCOME</small>
-                <h3>{strategyLabel(leader?.strategy)}</h3>
+                <h3>{strategyLabel(position?.strategy ?? leader?.strategy)}</h3>
               </div>
               <div className="strategy-stat"><small>MODEL MOVE</small><b>{moveMetric(leader?.modelMovePct)}</b></div>
               <div className="strategy-stat"><small>IMPLIED MOVE</small><b>{moveMetric(leader?.impliedMovePct)}</b></div>
@@ -220,7 +221,7 @@ export default function Home() {
             <p className="thesis">
               {leader?.thesis ?? 'Run the local read-only collector to compare realized volatility with the live at-the-money options straddle.'}
               {' '}{position && proposalDecision
-                ? `Exact legs imply ${money(position.maxLoss)} maximum loss; the proposal passed ${proposalDecision.passed}/${proposalDecision.total} portfolio gates and remains blocked.`
+                ? `${position.optimized ? 'The wing optimizer preserved two-sided volatility exposure and' : 'Exact legs'} imply ${money(position.maxLoss)} maximum loss${position.maxProfit === null ? '' : ` and ${money(position.maxProfit)} minimum wing profit`}; the proposal passed ${proposalDecision.passed}/${proposalDecision.total} portfolio gates and remains blocked.`
                 : 'Risk sizing waits for concrete option legs and a defined maximum loss.'}
             </p>
 
@@ -286,7 +287,35 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className="trace-foot"><span>Signal outcome</span><strong>{candidate ? 'CANDIDATE · NOT AN ORDER' : 'ABSTAIN'}</strong></div>
+            {position && (
+              <>
+                <p className="trace-summary"><b>Position construction · ${position.riskBudget} risk budget.</b> {position.rationale} Pricing uses {position.pricingBasis === 'buy-ask-sell-bid' ? 'buy-at-ask and sell-at-bid limits' : 'quoted midpoints'}.</p>
+                <div className="gate-list">
+                  {position.legs.map((leg, index) => (
+                    <div className="gate" key={leg.symbol}>
+                      <span className={leg.side === 'buy' ? 'pass' : 'fail'}>{leg.side === 'buy' ? '+' : '−'}</span>
+                      <div><small>LEG {String(index + 1).padStart(2, '0')} · {leg.type.toUpperCase()}</small><b>{leg.side.toUpperCase()} {leg.strike}</b></div>
+                      <p>{leg.symbol} · limit ${leg.limitPrice.toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {proposalDecision && (
+              <>
+                <p className="trace-summary"><b>Portfolio risk gates.</b> Passing the $500 sizing gate does not authorize a trade; every gate, including the independent council, must pass.</p>
+                <div className="gate-list">
+                  {proposalDecision.gates.map((item, index) => (
+                    <div className="gate" key={item.id}>
+                      <span className={item.passed ? 'pass' : 'fail'}>{item.passed ? '✓' : '×'}</span>
+                      <div><small>RISK {String(index + 1).padStart(2, '0')}</small><b>{item.label}</b></div>
+                      <p>{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="trace-foot"><span>Final outcome</span><strong>{proposalDecision?.approved ? 'APPROVED FOR PAPER PREVIEW' : candidate ? 'BLOCKED · NOT AN ORDER' : 'ABSTAIN'}</strong></div>
           </section>
         </div>
       )}

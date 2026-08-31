@@ -36,6 +36,18 @@ export interface OptionChainResponse {
   snapshots?: Record<string, OptionSnapshot>;
 }
 
+export interface OptionContractQuote {
+  symbol: string;
+  type: 'call' | 'put';
+  strike: number;
+  bid: number;
+  ask: number;
+  mid: number;
+  spreadPct: number;
+  quoteAgeSeconds: number;
+  volume: number;
+}
+
 export interface ScanCheck {
   id: 'session' | 'history' | 'pair' | 'liquidity' | 'freshness' | 'edge';
   label: string;
@@ -64,6 +76,7 @@ export interface OptionScan {
   spreadPct: number | null;
   quoteAgeSeconds: number | null;
   combinedVolume: number;
+  contracts: OptionContractQuote[];
   checks: ScanCheck[];
 }
 
@@ -211,7 +224,7 @@ export function buildUnavailableScan(
     callSymbol: null, putSymbol: null, callMid: null, putMid: null,
     modelMovePct: null, impliedMovePct: null, directionalConfidence: 0,
     direction: 'neutral', spreadPct: null, quoteAgeSeconds: null,
-    combinedVolume: 0, checks,
+    combinedVolume: 0, contracts: [], checks,
   };
 }
 
@@ -220,9 +233,24 @@ export function buildOptionScan(input: ScanInput): OptionScan {
   if (!underlyingPrice) return buildUnavailableScan(input, 'Underlying price unavailable');
 
   const pairs = new Map<number, { call?: [string, OptionSnapshot]; put?: [string, OptionSnapshot] }>();
+  const contracts: OptionContractQuote[] = [];
   for (const [symbol, snapshot] of Object.entries(input.chain.snapshots ?? {})) {
     const contract = parseOptionSymbol(symbol);
     if (!contract || contract.underlying !== input.symbol || contract.expiration !== input.expiration) continue;
+    const metrics = quoteMetrics(snapshot);
+    if (metrics) {
+      contracts.push({
+        symbol,
+        type: contract.type,
+        strike: contract.strike,
+        bid: round(snapshot.latestQuote!.bp!),
+        ask: round(snapshot.latestQuote!.ap!),
+        mid: round(metrics.mid),
+        spreadPct: round(metrics.spreadPct),
+        quoteAgeSeconds: Math.round(quoteAgeSeconds(metrics.timestamp, input.capturedAt)),
+        volume: metrics.volume,
+      });
+    }
     const pair = pairs.get(contract.strike) ?? {};
     pair[contract.type] = [symbol, snapshot];
     pairs.set(contract.strike, pair);
@@ -296,6 +324,7 @@ export function buildOptionScan(input: ScanInput): OptionScan {
     spreadPct: round(spreadPct),
     quoteAgeSeconds: Math.round(age),
     combinedVolume,
+    contracts: contracts.sort((left, right) => left.strike - right.strike || left.type.localeCompare(right.type)),
     checks,
   };
 }

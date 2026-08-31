@@ -1,5 +1,6 @@
 export type Strategy =
   | 'iron_condor'
+  | 'long_iron_butterfly'
   | 'long_straddle'
   | 'bull_call_spread'
   | 'bear_put_spread'
