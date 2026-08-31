@@ -194,3 +194,23 @@ The first QQQ and GLD candidates showed that a valid signal can be too expensive
 ### Remaining limitation
 
 Directional verticals and iron-condor construction still fail closed. The next milestone is the independent agent council, followed by a non-submitting Alpaca complex-order preview. Open-position maximum risk must be modeled before more than one position can be considered.
+
+## 2026-08-31 — All-device dashboard
+
+### What changed
+
+- Replaced the phone's hidden navigation with a five-destination bottom bar and 48-pixel touch targets.
+- Reflowed metrics, strategy evidence, candidate cards, risk controls, and status information across phone, tablet, landscape, and desktop breakpoints.
+- Added safe-area support for notched devices, explicit mobile viewport metadata, a keyboard skip link, visible focus treatment, and overflow-safe contract text.
+- Converted the decision trace into a full-width mobile sheet with larger controls and readable gate evidence.
+
+### Why and routine impact
+
+VolGuard is intended to support a real routine, so readiness checks and rejected-trade review must remain usable when the operator is away from a laptop. Mobile access does not weaken a gate or unlock execution; it exposes the same evidence and controls in a form that can be read and operated safely by touch.
+
+### Verification
+
+- Browser checks passed at 320×568, 390×844, 768×1024, 1024×768, and 1440×900.
+- No tested viewport produced horizontal overflow, and all five navigation destinations remained available.
+- Primary phone controls measured at least 44 pixels high; section navigation landed above the fixed bar; and the browser reported no console errors.
+- Twenty-five automated tests, TypeScript, lint, and the production build pass.

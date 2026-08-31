@@ -138,6 +138,16 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Current limitation:** The trace now shows signal checks, exact legs, conservative limit prices, and all twelve portfolio-risk gates. Agent rationales and order-preview evidence will be added with the council milestone.
 
+### Responsive operator interface
+
+**Purpose:** Keep the complete trading workflow usable on phones, tablets, laptops, and large desktop screens instead of treating mobile as a reduced read-only view.
+
+**Strengths:** Phone navigation keeps all five sections available in a touch-friendly bottom bar; metrics stay compact; decision cards stack without horizontal scrolling; long option symbols wrap safely; the decision trace becomes a full-width mobile sheet; and safe-area padding protects controls on notched devices.
+
+**Uses:** Check account readiness away from the desk, review a candidate or abstention on a phone, inspect risk gates on a tablet, and use the denser two-column desk layout for deeper review.
+
+**Current limitation:** Responsive layout does not make broker data continuous. The phone shows the same snapshot age and execution lock as every other device, and the local Alpaca publisher must still run to refresh data.
+
 ### Agent pause and execution lock
 
 **Purpose:** Separate analysis from authorization to act.
