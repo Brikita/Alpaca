@@ -136,8 +136,8 @@ Exact contract-leg construction, risk sizing, order preview, scheduling, and ses
 
 ### What changed
 
-- Updated React, Vinext, Vite, the Cloudflare build toolchain, and their required peers to patched compatible releases.
-- Added the JSON import attribute required by the updated Vite configuration loader.
+- Updated React and React Server Components to patched releases.
+- Evaluated a newer Vinext, Vite, and Cloudflare build toolchain, then rolled it back after production D1 requests timed out. The known-compatible hosting stack remains pinned while that regression is isolated.
 
 ### Why
 
@@ -145,6 +145,28 @@ The final audit found high-severity advisories in both runtime and build depende
 
 ### Verification
 
-- Nineteen tests, lint, TypeScript, and the production Vinext build pass after the update.
+- Tests, lint, TypeScript, and the production Vinext build pass after the retained React update.
 - `npm audit --omit=dev` reports zero production vulnerabilities.
-- The full audit retains four moderate findings in Drizzle Kit's legacy development-only esbuild loader. The offered automatic fix is a breaking downgrade, so it was not applied.
+- The full audit still reports development-tool findings. Automated forced fixes would introduce breaking changes, so the working production stack is retained until a compatible upgrade is verified end to end.
+
+## 2026-08-31 — First open-market decision
+
+### What changed
+
+- Published fresh live-session account telemetry and an option scan at 10:12 AM ET.
+- Added GLD to the regular universe after confirming it is Alpaca-tradable and options-enabled.
+- Added exact long-straddle construction and a read-only command that evaluates the newest hosted candidate through all twelve portfolio gates.
+- Updated the dashboard to distinguish a signal candidate from a risk-approved proposal.
+
+### Evidence
+
+- The paper account was active with $100,000 equity, no positions, no orders, and no trading block.
+- SPY and IWM abstained because their implied/model ratios did not clear the edge threshold.
+- QQQ passed all six signal checks at the 714 strike: 2.18% modeled move versus 1.53% implied, fresh quotes, 2.9% widest spread, and 718 combined volume.
+- The exact Sep 4 long straddle cost about $10.89 per share, or $1,089 theoretical maximum loss for one contract pair. It passed 10/12 portfolio gates but failed the $500 per-trade cap and the not-yet-run agent council.
+- An observational GLD scan found an apparent volatility edge but abstained because combined ATM volume was only 36.
+- No order preview or submission was performed.
+
+### Operational incident
+
+The newest hosting build returned D1 timeouts. VolGuard was rolled back to the last known-good private release, endpoint health returned to 200, and telemetry publishing succeeded. The source build stack is being kept compatible until the newer D1 regression is resolved.

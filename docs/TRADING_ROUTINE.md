@@ -50,6 +50,8 @@ Run `npm run scan:options` only as an observation step. For each symbol, read th
 
 An abstention is a completed decision, not a failed run. Record why it abstained; do not weaken a gate merely to create activity.
 
+When a signal passes, construct the exact position before discussing execution. For a long straddle, maximum loss is the call premium plus put premium, multiplied by 100 shares and quantity. If the smallest valid contract unit exceeds the session's per-trade budget, the trade is blocked; confidence cannot resize an indivisible option contract.
+
 ### 5. Form a falsifiable thesis
 
 Every proposal must state:

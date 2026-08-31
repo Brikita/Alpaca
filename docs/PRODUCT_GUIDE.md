@@ -68,6 +68,16 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Current limitation:** These are signal checks, not the twelve portfolio-risk gates. Passing them only creates a candidate for the next stage.
 
+### Exact position constructor
+
+**Purpose:** Turn an eligible strategy signal into explicit option symbols, quantity, quoted debit, and theoretical maximum loss before portfolio approval.
+
+**Strengths:** Risk is calculated from real contract prices rather than a strategy label. Long straddles are fully defined; strategies requiring protective wings fail closed until those additional contracts are selected.
+
+**Uses:** Enforce the per-trade budget, create an auditable order preview, and explain why a market opportunity may still be unaffordable.
+
+**Current limitation:** Only long-straddle construction is complete. Vertical spreads and iron condors need a wing-selection optimizer before they can become proposals.
+
 ### Twelve-gate risk governor
 
 **Purpose:** Block any proposal that violates paper-only mode, defined-risk policy, exposure limits, liquidity requirements, quote freshness, or agent-consensus rules.

@@ -143,3 +143,15 @@
 **Impact:** A future Vercel frontend can consume the same scan contract after its persistence adapter is replaced.
 
 **Trade-off:** Detailed surface research must be performed locally or added through a deliberately versioned analytics schema.
+
+## ADR-013 — Position risk is calculated before agent persuasion
+
+**Status:** Accepted
+
+**Decision:** Construct exact contracts and calculate theoretical maximum loss before requesting agent votes or generating an order preview.
+
+**Reasoning:** A signal can identify an apparent volatility edge while the minimum tradable contract is still too expensive for policy. Option contracts are not fractionally resizable.
+
+**Impact:** The first live QQQ long-straddle signal was correctly blocked at $1,089 maximum loss against a $500 limit, even though all six signal checks passed.
+
+**Trade-off:** Some valid forecasts cannot be traded until a lower-cost defined-risk structure is available.
