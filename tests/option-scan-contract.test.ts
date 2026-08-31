@@ -49,3 +49,21 @@ test('rejects an incomplete decision trace', () => {
   const scans = [{ ...batch.scans[0], checks: batch.scans[0].checks.slice(1) }];
   assert.equal(isOptionScanBatch({ ...batch, scans }), false);
 });
+
+test('rejects malformed or excessive wing quote payloads', () => {
+  const batch = validBatch();
+  const malformed = {
+    ...batch,
+    scans: [{ ...batch.scans[0], contracts: [{ symbol: 'bad', type: 'call', strike: 0 }] }],
+  };
+  assert.equal(isOptionScanBatch(malformed), false);
+
+  const excessive = {
+    ...batch,
+    scans: [{ ...batch.scans[0], contracts: Array.from({ length: 201 }, () => ({
+      symbol: 'SPY260904C00100000', type: 'call', strike: 100,
+      bid: 1, ask: 1.1, mid: 1.05, spreadPct: 0.0952, quoteAgeSeconds: 1, volume: 10,
+    })) }],
+  };
+  assert.equal(isOptionScanBatch(excessive), false);
+});

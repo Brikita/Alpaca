@@ -324,7 +324,9 @@ export function buildOptionScan(input: ScanInput): OptionScan {
     spreadPct: round(spreadPct),
     quoteAgeSeconds: Math.round(age),
     combinedVolume,
-    contracts: contracts.sort((left, right) => left.strike - right.strike || left.type.localeCompare(right.type)),
+    contracts: candidate
+      ? contracts.sort((left, right) => left.strike - right.strike || left.type.localeCompare(right.type))
+      : [],
     checks,
   };
 }

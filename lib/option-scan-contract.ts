@@ -1,4 +1,9 @@
-import type { OptionScan, OptionScanBatch, ScanCheck } from './option-intelligence.ts';
+import type {
+  OptionContractQuote,
+  OptionScan,
+  OptionScanBatch,
+  ScanCheck,
+} from './option-intelligence.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -21,9 +26,31 @@ const checkIds = new Set<ScanCheck['id']>([
 ]);
 const statuses = new Set<OptionScan['status']>(['candidate', 'abstain', 'unavailable']);
 const strategies = new Set<OptionScan['strategy']>([
-  'iron_condor', 'long_straddle', 'bull_call_spread', 'bear_put_spread', 'abstain',
+  'iron_condor', 'long_iron_butterfly', 'long_straddle', 'bull_call_spread', 'bear_put_spread', 'abstain',
 ]);
 const directions = new Set<OptionScan['direction']>(['bullish', 'bearish', 'neutral']);
+const optionTypes = new Set<OptionContractQuote['type']>(['call', 'put']);
+
+function isOptionContractQuote(value: unknown): value is OptionContractQuote {
+  return isRecord(value)
+    && typeof value.symbol === 'string'
+    && typeof value.type === 'string'
+    && optionTypes.has(value.type as OptionContractQuote['type'])
+    && isFiniteNumber(value.strike)
+    && value.strike > 0
+    && isFiniteNumber(value.bid)
+    && value.bid > 0
+    && isFiniteNumber(value.ask)
+    && value.ask >= value.bid
+    && isFiniteNumber(value.mid)
+    && value.mid > 0
+    && isFiniteNumber(value.spreadPct)
+    && value.spreadPct >= 0
+    && isFiniteNumber(value.quoteAgeSeconds)
+    && value.quoteAgeSeconds >= 0
+    && isFiniteNumber(value.volume)
+    && value.volume >= 0;
+}
 
 function isScanCheck(value: unknown): value is ScanCheck {
   return (
@@ -66,6 +93,9 @@ function isOptionScan(value: unknown): value is OptionScan {
   ];
   if (!nullableNumbers.every(isNullableFiniteNumber)) return false;
   if (!isNullableString(value.callSymbol) || !isNullableString(value.putSymbol)) return false;
+  if (!Array.isArray(value.contracts) || value.contracts.length > 200 || !value.contracts.every(isOptionContractQuote)) {
+    return false;
+  }
   if (!Array.isArray(value.checks) || value.checks.length !== checkIds.size || !value.checks.every(isScanCheck)) {
     return false;
   }
