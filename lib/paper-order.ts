@@ -192,7 +192,7 @@ export function createPaperExitEvent(input: {
   return {
     ...input.entry,
     eventKey: isMonitor
-      ? `${input.entry.clientOrderId}:monitored:${recordedAt}`
+      ? `${input.entry.clientOrderId}:monitored:${input.evaluation.reason}:${Math.trunc(input.evaluation.unrealizedPnl / 25)}`
       : `${clientOrderId}:${input.eventType}`,
     eventType: input.eventType,
     recordedAt,

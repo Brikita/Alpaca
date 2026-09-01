@@ -1,5 +1,6 @@
 import { runAlpaca } from '../lib/alpaca-cli.ts';
 import {
+  reconcilePaperExitEvent,
   reconcilePaperOrderEvent,
   type AlpacaOrderResponse,
   type PaperOrderEvent,
@@ -39,12 +40,21 @@ try {
   const { events } = await eventResponse.json() as { events: PaperOrderEvent[] };
   const existingKeys = new Set(events.map((event) => event.eventKey));
   const submissions = events.filter((event) => event.eventType === 'submitted');
+  const exitSubmissions = events.filter((event) => event.eventType === 'exit_submitted');
   let published = 0;
 
   for (const order of orders.data) {
-    const source = submissions.find((event) => event.clientOrderId === order.client_order_id);
+    const source = [...submissions, ...exitSubmissions]
+      .find((event) => event.clientOrderId === order.client_order_id);
     if (!source) continue;
-    const reconciled = reconcilePaperOrderEvent(source, order);
+    const entry = source.exit
+      ? events.find((event) => event.clientOrderId === source.exit?.entryClientOrderId
+        && event.eventType === 'reconciled'
+        && !event.exit)
+      : null;
+    const reconciled = source.exit && entry
+      ? reconcilePaperExitEvent(source, entry, order)
+      : reconcilePaperOrderEvent(source, order);
     if (existingKeys.has(reconciled.eventKey)) continue;
     await publishPaperOrderEvent(
       reconciled,
