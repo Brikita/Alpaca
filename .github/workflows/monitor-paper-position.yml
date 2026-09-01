@@ -1,0 +1,72 @@
+name: Monitor VolGuard paper position
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Broad UTC window covers the full US session across daylight-saving changes.
+    # The runner's broker clock remains the authoritative open/closed gate.
+    - cron: '*/15 13-22 * * 1-5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: volguard-paper-position-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    name: Governed paper monitor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment: paper-trading
+    env:
+      ALPACA_LIVE_TRADE: 'false'
+      VOLGUARD_EXECUTION_ENABLED: 'false'
+      VOLGUARD_EXIT_ENABLED: 'paper'
+      VOLGUARD_TELEMETRY_URL: ${{ secrets.VOLGUARD_TELEMETRY_URL }}
+      VOLGUARD_SCAN_URL: ${{ secrets.VOLGUARD_SCAN_URL }}
+      VOLGUARD_TELEMETRY_TOKEN: ${{ secrets.VOLGUARD_TELEMETRY_TOKEN }}
+      VOLGUARD_SITES_BYPASS_TOKEN: ${{ secrets.VOLGUARD_SITES_BYPASS_TOKEN }}
+      ALPACA_PROFILE_B64: ${{ secrets.ALPACA_PROFILE_B64 }}
+
+    steps:
+      - name: Check out the audited strategy
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Use Node.js 22.13.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install verified Alpaca CLI 0.0.14
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location \
+            --output /tmp/alpaca-cli.tar.gz \
+            https://github.com/alpacahq/cli/releases/download/v0.0.14/cli_0.0.14_linux_amd64.tar.gz
+          echo '6c82ef31f94dd61aae1c90e40fc41fdfaf8111bd50e9a2780b9d8d304eb2ba66  /tmp/alpaca-cli.tar.gz' \
+            | sha256sum --check --strict
+          tar --extract --gzip --file /tmp/alpaca-cli.tar.gz --directory /tmp
+          sudo install --mode 0755 /tmp/alpaca /usr/local/bin/alpaca
+          alpaca version
+
+      - name: Restore the paper-only Alpaca profile
+        shell: bash
+        run: |
+          mkdir --parents "$HOME/.config/alpaca/profiles"
+          printf '%s' "$ALPACA_PROFILE_B64" | base64 --decode > "$HOME/.config/alpaca/profiles/paper.yaml"
+          printf 'default_profile: paper\noutput: json\ncolor: false\n' > "$HOME/.config/alpaca/config.yaml"
+          chmod 600 "$HOME/.config/alpaca/profiles/paper.yaml" "$HOME/.config/alpaca/config.yaml"
+          alpaca doctor
+
+      - name: Evaluate the governed paper exit
+        run: npm run monitor:position
+
+      - name: Reconcile existing paper orders
+        if: always()
+        run: npm run reconcile:orders
