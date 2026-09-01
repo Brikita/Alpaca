@@ -233,3 +233,26 @@ The existing database preserved each scan, but the interface exposed only the ne
 - TypeScript and the local application render pass.
 - The feature reads existing D1 records and requires no database migration.
 - No order command was invoked; order, fill, exit, and realized-P&amp;L history remain the next reconciliation milestone.
+
+## 2026-09-01 — First governed paper execution
+
+### What changed
+
+- Added conservative bear-put and bull-call vertical construction.
+- Added a four-role transparent council with inspectable approvals, abstention, and red-team veto logic.
+- Added mandatory atomic Alpaca multi-leg dry runs, an idempotent client order ID, a one-process paper execution unlock, and a strict 60-second evidence limit.
+- Added protected append-only preview, submission, rejection, and broker-reconciliation events to the dashboard journal.
+
+### Live paper evidence
+
+- At 10:24 AM ET, the fresh paper account was active with $100,000 equity, options level 3, no positions, no orders, and no trading block.
+- SPY and QQQ abstained at the edge gate. IWM and GLD produced bearish directional candidates; GLD ranked first.
+- VolGuard selected the Sep 4 GLD 398/391 bear-put spread: buy one 398 put and sell one 391 put.
+- Conservative entry evidence produced a $1.82 debit limit, $182 maximum loss, and $518 theoretical maximum expiration profit. Effective quote age was 42 seconds and the widest leg spread was 11.32%, below the 12% ceiling.
+- Regime and Volatility approved, Catalyst explicitly abstained because no verified event feed exists, and Red Team issued no veto. The deterministic governor passed 12/12 gates.
+- Alpaca's dry run validated the same atomic request. The paper API then accepted it and filled one strategy unit at a $1.79 average debit, three cents better than the limit.
+- The post-fill snapshot showed the long 398 put and short covered 391 put, no open orders, $99,984.95 marked equity, and $99,820.95 cash. The immediate $15 marked decline is unrealized spread/mark variation, not a closed-trade result.
+
+### Safety impact and remaining work
+
+Live routing remained prohibited, and the execution unlock applied only to the single local process. VolGuard now refuses another proposal while these legs are open. Exit rules, scheduled monitoring, verified event data, strategy-level position grouping, and portfolio-wide maximum-risk aggregation remain required before scaling beyond one paper position.

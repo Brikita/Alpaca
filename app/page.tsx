@@ -129,6 +129,7 @@ export default function Home() {
   const leader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
   const passedSignalChecks = leader?.checks.filter((check) => check.passed).length ?? 0;
   const candidate = leader?.status === 'candidate';
+  const portfolioOccupied = Boolean(snapshot && snapshot.positions.length > 0);
   const construction = leader ? constructPosition(leader) : null;
   const position = construction?.status === 'constructed' ? construction.position : null;
   const councilVotes = position && leader ? runAgentCouncil(leader, position) : [];
@@ -141,7 +142,9 @@ export default function Home() {
     : null;
   const decisionHeading = leader
     ? candidate
-      ? proposalDecision && !proposalDecision.approved
+      ? portfolioOccupied
+        ? `${leader.symbol} scan held while a paper position is open`
+        : proposalDecision && !proposalDecision.approved
         ? `${leader.symbol} signal blocked by risk policy`
         : `${leader.symbol} cleared every signal gate`
       : `${leader.symbol} correctly abstained`
@@ -227,7 +230,9 @@ export default function Home() {
                 <h2>{decisionHeading}</h2>
               </div>
               <span className={`confidence ${proposalDecision && !proposalDecision.approved || !candidate ? 'abstain' : ''}`}>
-                {proposalDecision && !proposalDecision.approved
+                {portfolioOccupied
+                  ? 'POSITION OPEN'
+                  : proposalDecision && !proposalDecision.approved
                   ? 'RISK BLOCKED'
                   : candidate ? `${Math.round((leader?.confidence ?? 0) * 100)}% signal confidence` : 'NO TRADE'}
               </span>
@@ -247,7 +252,9 @@ export default function Home() {
             <p className="thesis">
               {leader?.thesis ?? 'Run the local read-only collector to compare realized volatility with the live at-the-money options straddle.'}
               {' '}{position && proposalDecision
-                ? `${position.optimized ? 'The wing optimizer preserved two-sided volatility exposure and' : 'Exact legs'} imply ${money(position.maxLoss)} maximum loss${position.maxProfit === null ? '' : ` and ${money(position.maxProfit)} minimum wing profit`}; the proposal passed ${proposalDecision.passed}/${proposalDecision.total} portfolio gates and remains blocked.`
+                ? `${position.optimized ? 'The optimizer selected covered legs whose' : 'Exact legs'} conservative prices imply ${money(position.maxLoss)} maximum loss${position.maxProfit === null ? '' : ` and ${money(position.maxProfit)} maximum expiration profit`}; the proposal passed ${proposalDecision.passed}/${proposalDecision.total} portfolio gates.`
+                : portfolioOccupied
+                  ? 'A paper position is already open, so VolGuard blocks any new proposal until its option legs and maximum risk are reconciled.'
                 : 'Risk sizing waits for concrete option legs and a defined maximum loss.'}
             </p>
 
@@ -274,7 +281,7 @@ export default function Home() {
             <div className="card-heading"><div><p className="eyebrow">READ-ONLY ACCOUNT GUARD</p><h2>Account health</h2></div><span className="shield">{accountReady ? '✓' : '·'}</span></div>
             <div className={`risk-dial ${accountReady ? 'ready' : ''}`}><div><strong>{snapshot ? (accountReady ? '100%' : 'CHECK') : '—'}</strong><span>{snapshot ? (accountReady ? 'READY' : 'REVIEW') : 'NO DATA'}</span></div></div>
             <dl className="risk-list">
-              <div><dt>Open positions</dt><dd>{snapshot ? snapshot.positions.length : '—'}</dd></div>
+              <div><dt>Open option legs</dt><dd>{snapshot ? snapshot.positions.length : '—'}</dd></div>
               <div><dt>Daily drawdown</dt><dd><span>{snapshot ? `${dailyDrawdownPct.toFixed(2)}%` : '—'}</span> / 1.50%</dd></div>
               <div><dt>Trading blocked</dt><dd>{snapshot ? (snapshot.account.tradingBlocked ? 'YES' : 'NO') : '—'}</dd></div>
               <div><dt>Kill switch</dt><dd className="armed">ARMED</dd></div>
