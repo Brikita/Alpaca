@@ -5,7 +5,8 @@ on:
   schedule:
     # Broad UTC window covers the full US session across daylight-saving changes.
     # The runner's broker clock remains the authoritative open/closed gate.
-    - cron: '*/15 13-22 * * 1-5'
+    # Offset from the busiest top-of-hour boundary; GitHub's minimum is 5 minutes.
+    - cron: '2-59/5 13-22 * * 1-5'
 
 permissions:
   contents: read
