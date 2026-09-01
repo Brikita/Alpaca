@@ -68,6 +68,25 @@ function moveMetric(value: number | null | undefined): string {
   return value === null || value === undefined ? '—' : `±${value.toFixed(2)}%`;
 }
 
+function exitReasonLabel(reason: NonNullable<PaperOrderEvent['exit']>['reason']): string {
+  const labels = {
+    profit_target: 'Profit target',
+    loss_limit: 'Loss limit',
+    time_exit: 'Time exit',
+    hold: 'Hold',
+  } as const;
+  return labels[reason];
+}
+
+function eventStatusLabel(event: PaperOrderEvent): string {
+  if (event.eventType === 'reconciled') return event.brokerStatus.toUpperCase();
+  if (event.eventType === 'exit_reconciled') {
+    return event.brokerStatus === 'filled' ? 'CLOSED' : event.brokerStatus.toUpperCase();
+  }
+  if (event.eventType === 'monitored') return event.exit?.reason === 'hold' ? 'HOLD' : 'EXIT READY';
+  return event.eventType.replaceAll('_', ' ').toUpperCase();
+}
+
 export default function Home() {
   const [traceOpen, setTraceOpen] = useState(false);
   const [agentRunning, setAgentRunning] = useState(true);
@@ -151,6 +170,14 @@ export default function Home() {
     : 'Waiting for the first real option scan';
   const submittedTrades = tradeHistory.filter((event) => event.eventType === 'submitted');
   const latestTradeEvent = tradeHistory[0] ?? null;
+  const entryFill = tradeHistory.find((event) => event.eventType === 'reconciled'
+    && !event.exit
+    && event.brokerStatus === 'filled'
+    && event.filledQuantity > 0) ?? null;
+  const latestExitEvent = tradeHistory.find((event) => Boolean(event.exit)) ?? null;
+  const closedExit = tradeHistory.find((event) => event.eventType === 'exit_reconciled'
+    && event.brokerStatus === 'filled'
+    && event.filledQuantity > 0) ?? null;
 
   return (
     <main className="app-shell">
@@ -333,10 +360,14 @@ export default function Home() {
               <p className="eyebrow">BROKER RECONCILIATION</p>
               <div className="trade-count">
                 <strong>{submittedTrades.length}</strong>
-                <span>PAPER ORDERS SUBMITTED</span>
+                <span>PAPER ENTRIES SUBMITTED</span>
               </div>
               <h3>{latestTradeEvent
-                ? latestTradeEvent.eventType === 'reconciled'
+                ? latestTradeEvent.eventType === 'exit_reconciled' && latestTradeEvent.brokerStatus === 'filled'
+                  ? `${latestTradeEvent.symbol} lifecycle closed`
+                  : latestTradeEvent.eventType === 'monitored'
+                    ? `${latestTradeEvent.symbol} position: ${latestTradeEvent.exit?.reason === 'hold' ? 'HOLD' : 'EXIT READY'}`
+                : latestTradeEvent.eventType === 'reconciled'
                   ? `${latestTradeEvent.symbol} broker status: ${latestTradeEvent.brokerStatus}`
                   : latestTradeEvent.eventType === 'submitted'
                   ? `${latestTradeEvent.symbol} paper order accepted`
@@ -347,13 +378,28 @@ export default function Home() {
               <p>{latestTradeEvent
                 ? latestTradeEvent.message
                 : 'The execution journal is ready, but no order event has been recorded.'} The latest read-only Alpaca snapshot reports {snapshot ? snapshot.openOrders.length : '—'} open orders and {snapshot ? snapshot.positions.length : '—'} positions.</p>
+              {latestExitEvent?.exit && (
+                <dl className="exit-policy">
+                  <div><dt>Conservative close</dt><dd>{money(latestExitEvent.exit.closeCredit)} credit</dd></div>
+                  <div><dt>Marked spread P&amp;L</dt><dd className={latestExitEvent.exit.unrealizedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(latestExitEvent.exit.unrealizedPnl)}</dd></div>
+                  <div><dt>Profit target</dt><dd>{money(latestExitEvent.exit.profitTarget)}</dd></div>
+                  <div><dt>Loss limit</dt><dd>−{money(latestExitEvent.exit.lossLimit)}</dd></div>
+                  <div><dt>Time exit</dt><dd>{historyTimeLabel(latestExitEvent.exit.timeExitAt)} ET</dd></div>
+                  <div><dt>Current decision</dt><dd>{exitReasonLabel(latestExitEvent.exit.reason)}</dd></div>
+                  {latestExitEvent.exit.realizedPnl !== null && (
+                    <div><dt>Realized P&amp;L</dt><dd className={latestExitEvent.exit.realizedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(latestExitEvent.exit.realizedPnl)}</dd></div>
+                  )}
+                </dl>
+              )}
               {!!tradeHistory.length && (
                 <div className="trade-event-list">
-                  {tradeHistory.slice(0, 4).map((event) => (
+                  {tradeHistory.slice(0, 6).map((event) => (
                     <div key={event.eventKey}>
-                      <span className={`trade-event-status ${event.eventType}`}>{event.eventType === 'reconciled' ? event.brokerStatus.toUpperCase() : event.eventType.toUpperCase()}</span>
+                      <span className={`trade-event-status ${event.eventType}`}>{eventStatusLabel(event)}</span>
                       <strong>{event.symbol} · {strategyLabel(event.strategy)}</strong>
-                      <small>{historyTimeLabel(event.recordedAt)} ET · {money(event.maxLoss, 0)} max loss · {event.filledAveragePrice === null ? `${money(event.limitDebit)} limit` : `${money(event.filledAveragePrice)} fill`}</small>
+                      <small>{historyTimeLabel(event.recordedAt)} ET · {event.exit
+                        ? `${signedMoney(event.exit.unrealizedPnl)} marked · ${money(event.exit.closeCredit)} close credit · ${exitReasonLabel(event.exit.reason)}`
+                        : `${money(event.maxLoss, 0)} max loss · ${event.filledAveragePrice === null ? `${money(event.limitDebit)} limit` : `${money(event.filledAveragePrice)} fill`}`}</small>
                     </div>
                   ))}
                 </div>
@@ -362,9 +408,11 @@ export default function Home() {
                 <div><dt>Signal decisions</dt><dd className="live">LIVE</dd></div>
                 <div><dt>Order previews</dt><dd className="live">LIVE</dd></div>
                 <div><dt>Submitted orders</dt><dd className={submittedTrades.length ? 'live' : ''}>{submittedTrades.length || 'NONE'}</dd></div>
-                <div><dt>Fills &amp; exits</dt><dd>NEXT</dd></div>
+                <div><dt>Entry fills</dt><dd className={entryFill ? 'live' : ''}>{entryFill ? 'MATCHED' : 'NONE'}</dd></div>
+                <div><dt>Exit monitoring</dt><dd className={latestExitEvent ? 'live' : ''}>{latestExitEvent ? 'LIVE' : 'WAITING'}</dd></div>
+                <div><dt>Closed trades</dt><dd className={closedExit ? 'live' : ''}>{closedExit ? 'MATCHED' : 'NONE'}</dd></div>
               </dl>
-              <small className="capture-note">A preview is not a trade. Submission unlocks for one deliberate local run; fills, exits, and realized P&amp;L still require broker reconciliation.</small>
+              <small className="capture-note">Entry and exit submission use separate one-process paper locks. VolGuard holds unless a fresh, exactly matched spread reaches its profit, loss, or pre-expiration time rule.</small>
             </aside>
           </div>
         </section>
