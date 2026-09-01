@@ -256,3 +256,30 @@ The existing database preserved each scan, but the interface exposed only the ne
 ### Safety impact and remaining work
 
 Live routing remained prohibited, and the execution unlock applied only to the single local process. VolGuard now refuses another proposal while these legs are open. Exit rules, scheduled monitoring, verified event data, strategy-level position grouping, and portfolio-wide maximum-risk aggregation remain required before scaling beyond one paper position.
+
+## 2026-09-01 — Governed position lifecycle
+
+### What changed
+
+- Added deterministic profit, loss, and prior-weekday time exits for filled debit spreads.
+- Added exact broker-position matching and fresh two-sided closing quotes.
+- Added atomic Alpaca multi-leg closing dry runs with reversed closing intents and a separate closing-only process lock.
+- Added durable monitoring, exit, reconciliation, and realized-P&L evidence to the journal.
+- Activated a 15-minute weekday heartbeat that runs the same closing-only monitor and reconciliation workflow.
+
+### Policy reasoning
+
+The position should not be managed by emotion or a single fluctuating account mark. VolGuard therefore targets 50% of actual maximum profit, treats a 50%-of-debit loss as thesis invalidation, and exits at 3:00 PM ET on the prior weekday to avoid expiration-day pin and assignment risk. It prices closure conservatively by selling long legs at bid and buying short legs at ask.
+
+### First live monitoring evidence
+
+- The open GLD 398/391 bear-put spread exactly matched both recorded broker legs.
+- Quotes were 2.63 seconds old.
+- The conservative closing credit was $2.10 versus the $1.79 entry debit.
+- Marked spread P&L was +$31.
+- The profit target was $260.50, the loss limit was $89.50, and the time exit was September 3 at 3:00 PM ET.
+- No threshold was reached, so VolGuard recorded HOLD and submitted no closing order.
+
+### Verification and remaining work
+
+Forty-four automated tests, TypeScript, lint, and the production build pass. Live routing remains prohibited. The scheduled task still requires the authenticated local host to be available. Exchange-holiday-aware time exits, verified catalyst data, strategy-level grouping, and portfolio-wide maximum-risk aggregation remain.

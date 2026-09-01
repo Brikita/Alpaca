@@ -13,6 +13,9 @@ VolGuard is an autonomous, risk-governed options agent for the Alpaca AI Trading
 - Conservative four-leg wing optimization against a fixed maximum-loss budget
 - Responsive phone, tablet, landscape, and desktop operator interface
 - Protected append-only scan evidence for the hosted dashboard
+- Governed hold, profit, loss, and pre-expiration exit decisions
+- Atomic closing-order previews with a separate paper-only exit lock
+- Entry, monitoring, exit, and realized-P&L lifecycle evidence
 - Automated strategy, risk, and safety tests
 
 ## Run the dashboard
@@ -51,6 +54,16 @@ The scanner compares a recent realized-volatility model with the current at-the-
 5. Set `VOLGUARD_EXECUTION_ENABLED=paper` only when the fresh competition account and every risk gate have been verified.
 
 The adapter passes CLI arguments without a shell, forces paper routing in the child process, expects structured JSON, and blocks mutating commands unless the explicit paper execution lock is open.
+
+Monitor the one matched open paper spread:
+
+```powershell
+npm run monitor:position
+```
+
+The monitor uses fresh two-sided quotes, verifies that every recorded option leg still matches the broker positions, and records a hold unless the 50% profit-capture target, 50%-of-debit loss limit, or 3:00 PM ET prior-weekday time exit is reached. Closing submission uses the separate one-process `VOLGUARD_EXIT_ENABLED=paper` lock and reverses all legs in one multi-leg order.
+
+The active VolGuard heartbeat runs this monitor every 15 minutes on weekdays. The script still checks the broker market clock and every safety condition, so a scheduled wake-up is not itself permission to trade.
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) before moving the dashboard to Vercel or attaching a portfolio subdomain. The current hosted persistence adapter uses Cloudflare D1 and needs an explicit Vercel storage replacement.
 

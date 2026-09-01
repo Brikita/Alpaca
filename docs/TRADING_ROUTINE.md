@@ -96,6 +96,14 @@ The execution runner accepts only account and scan evidence no more than 60 seco
 
 Monitor fills, spread quality, Greeks, total exposure, event changes, and the invalidation condition. Do not manage a trade solely by watching unrealized P&L.
 
+For a filled debit spread, VolGuard now precommits to three deterministic exit paths:
+
+- **Profit:** close after capturing 50% of the actual theoretical maximum profit.
+- **Loss/invalidation:** close when the conservative spread value implies a loss equal to 50% of the filled debit.
+- **Time:** close at 3:00 PM ET on the prior weekday rather than carrying expiration-day assignment and pin risk.
+
+Every evaluation sells originally purchased legs at their current bid and buys originally sold legs at their current ask. It refuses to act when either quote is older than 60 seconds, a quote is crossed or incomplete, the recorded legs do not exactly match the paper account, or another broker order is already open. A trigger produces an Alpaca dry run first. Submission requires the separate process-local `VOLGUARD_EXIT_ENABLED=paper` lock and sends every closing intent atomically.
+
 ## After the market
 
 ### 10. Reconcile

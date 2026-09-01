@@ -98,6 +98,16 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Current limitation:** Paper fills can differ from live execution. The runner refuses another proposal while any position or open order exists because aggregated options maximum risk is not yet modeled.
 
+### Governed paper-position exits
+
+**Purpose:** Manage a filled debit spread with precommitted profit, loss, and time rules rather than discretionary reactions to the account P&L.
+
+**Strengths:** Reconstructs the exact entry from the durable journal; verifies the long and short broker positions; prices closure conservatively at sell-bid and buy-ask; rejects quotes older than 60 seconds; dry-runs one atomic multi-leg close; and uses a closing-only process lock that cannot authorize opening intents.
+
+**Uses:** Intraday monitoring, expiration-risk control, complete trade demonstrations, and realized-P&L attribution.
+
+**Current limitation:** A weekday heartbeat now invokes the monitor every 15 minutes, but the host and authenticated local Alpaca runner must remain available. The prior-weekday rule is weekend-aware but does not yet consume the Alpaca market calendar for exchange holidays.
+
 ### Alpaca CLI safety boundary
 
 **Purpose:** Provide structured access to Alpaca while forcing paper routing and blocking mutating commands unless execution is explicitly unlocked.
@@ -156,7 +166,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** End-of-day review, explaining VolGuard to judges, identifying frequently failed filters, and building a dataset for later expectancy analysis.
 
-**Current limitation:** The journal now records previews, submissions, broker status, filled quantity, and average fill when Alpaca reports it. Exit orders, closed-position matching, and realized P&L attribution remain next.
+**Current limitation:** The journal records entry previews, submissions, fills, governed hold evaluations, closing events, and realized P&L when Alpaca reports a closing fill. Statistical expectancy remains unreliable until more completed paper trades exist.
 
 ### Responsive operator interface
 
