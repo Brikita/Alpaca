@@ -1,4 +1,5 @@
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot.ts';
+import { runAgentCouncil } from '../lib/agent-council.ts';
 import type { OptionScanBatch } from '../lib/option-intelligence.ts';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
@@ -34,7 +35,8 @@ try {
   if (construction.status === 'blocked') {
     process.stdout.write(`${JSON.stringify({ leader: leader.symbol, signalStatus: leader.status, construction }, null, 2)}\n`);
   } else {
-    const proposal = toTradeProposal(construction.position);
+    const votes = runAgentCouncil(leader, construction.position);
+    const proposal = toTradeProposal(construction.position, votes);
     const dailyDrawdown = Math.max(0, snapshot.account.previousEquity - snapshot.account.equity);
     const competitionDrawdown = Math.max(0, 100_000 - snapshot.account.equity);
     const decision = evaluateProposal(proposal, {
@@ -46,6 +48,7 @@ try {
       leader: leader.symbol,
       signalStatus: leader.status,
       position: construction.position,
+      councilVotes: votes,
       riskDecision: decision,
     }, null, 2)}\n`);
   }

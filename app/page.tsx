@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
+import { runAgentCouncil } from '../lib/agent-council';
 import type { DecisionHistoryItem } from '../lib/decision-history';
 import type { OptionScan, OptionScanBatch } from '../lib/option-intelligence';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor';
@@ -126,7 +127,7 @@ export default function Home() {
   const construction = leader ? constructPosition(leader) : null;
   const position = construction?.status === 'constructed' ? construction.position : null;
   const proposalDecision = position && snapshot && snapshot.positions.length === 0
-    ? evaluateProposal(toTradeProposal(position), {
+    ? evaluateProposal(toTradeProposal(position, runAgentCouncil(leader!, position)), {
         openRisk: 0,
         dailyDrawdown,
         competitionDrawdown: Math.max(0, STARTING_EQUITY - snapshot.account.equity),
