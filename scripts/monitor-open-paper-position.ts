@@ -114,6 +114,15 @@ try {
     config.sitesBypassToken,
   );
   if (snapshot.mode !== 'paper') throw new Error('Only the paper account may be monitored.');
+  if (!snapshot.market.isOpen) {
+    process.stdout.write(`${JSON.stringify({
+      stage: 'skipped',
+      reason: 'market_closed',
+      capturedAt: snapshot.capturedAt,
+      nextOpen: snapshot.market.nextOpen,
+    })}\n`);
+    process.exit(0);
+  }
   if (snapshot.account.status !== 'ACTIVE'
     || snapshot.account.accountBlocked
     || snapshot.account.tradingBlocked
