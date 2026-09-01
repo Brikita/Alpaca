@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import type { AlpacaSnapshot } from './alpaca-snapshot.ts';
 import type { OptionScanBatch } from './option-intelligence.ts';
+import type { PaperOrderEvent } from './paper-order.ts';
 
 interface VolGuardEnvironment {
   DB: D1Database;
@@ -41,6 +42,30 @@ const CREATE_OPTION_SCAN_INDEX_SQL = `
   ON option_scan_batches(captured_at)
 `;
 
+const CREATE_PAPER_ORDER_EVENT_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS paper_order_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    schema_version INTEGER NOT NULL,
+    event_key TEXT NOT NULL UNIQUE,
+    event_type TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    client_order_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    broker_status TEXT NOT NULL,
+    payload_json TEXT NOT NULL
+  )
+`;
+
+const CREATE_PAPER_ORDER_EVENT_RECORDED_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_paper_order_events_recorded_at
+  ON paper_order_events(recorded_at)
+`;
+
+const CREATE_PAPER_ORDER_EVENT_CLIENT_INDEX_SQL = `
+  CREATE INDEX IF NOT EXISTS idx_paper_order_events_client_order_id
+  ON paper_order_events(client_order_id)
+`;
+
 function bindings(): VolGuardEnvironment {
   return env as unknown as VolGuardEnvironment;
 }
@@ -51,6 +76,9 @@ async function ensureTelemetrySchema(database: D1Database): Promise<void> {
     database.prepare(CREATE_CAPTURED_AT_INDEX_SQL),
     database.prepare(CREATE_OPTION_SCAN_TABLE_SQL),
     database.prepare(CREATE_OPTION_SCAN_INDEX_SQL),
+    database.prepare(CREATE_PAPER_ORDER_EVENT_TABLE_SQL),
+    database.prepare(CREATE_PAPER_ORDER_EVENT_RECORDED_INDEX_SQL),
+    database.prepare(CREATE_PAPER_ORDER_EVENT_CLIENT_INDEX_SQL),
   ]);
 }
 
@@ -142,4 +170,44 @@ export async function recentOptionScanBatches(limit = 12): Promise<OptionScanBat
     .bind(safeLimit)
     .all<{ payload_json: string }>();
   return result.results.map((row) => JSON.parse(row.payload_json) as OptionScanBatch);
+}
+
+export async function savePaperOrderEvent(event: PaperOrderEvent): Promise<void> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  await database
+    .prepare(`
+      INSERT INTO paper_order_events (
+        schema_version, event_key, event_type, recorded_at, client_order_id,
+        symbol, broker_status, payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(event_key) DO NOTHING
+    `)
+    .bind(
+      event.schemaVersion,
+      event.eventKey,
+      event.eventType,
+      event.recordedAt,
+      event.clientOrderId,
+      event.symbol,
+      event.brokerStatus,
+      JSON.stringify(event),
+    )
+    .run();
+}
+
+export async function recentPaperOrderEvents(limit = 20): Promise<PaperOrderEvent[]> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+  const result = await database
+    .prepare(`
+      SELECT payload_json
+      FROM paper_order_events
+      ORDER BY recorded_at DESC
+      LIMIT ?
+    `)
+    .bind(safeLimit)
+    .all<{ payload_json: string }>();
+  return result.results.map((row) => JSON.parse(row.payload_json) as PaperOrderEvent);
 }

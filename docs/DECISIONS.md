@@ -167,3 +167,27 @@
 **Impact:** VolGuard can search for a four-leg, defined-risk structure with a worst-case debit no greater than $500 while keeping the original volatility hypothesis auditable.
 
 **Trade-off:** The wings cap profit and add complex-order execution and expiration pin risk. The optimizer therefore cannot authorize an order; freshness, portfolio gates, council approval, and a single complex-order preview still remain mandatory.
+
+## ADR-015 — Keep the first council transparent and non-authoritative
+
+**Status:** Accepted
+
+**Decision:** Implement four named specialist votes from explicit evidence. Require two positive specialist votes and a red-team non-veto, while allowing the catalyst specialist to abstain until an event feed exists. Keep the deterministic twelve-gate governor as the only approval authority.
+
+**Reasoning:** An opaque or fabricated “AI consensus” would weaken the audit trail. A transparent council produces useful disagreement today and creates a stable contract for later language-model critiques without giving prose the ability to override risk.
+
+**Impact:** Every vote has a confidence and rationale in the decision trace. Missing event evidence is visible rather than silently treated as clearance.
+
+**Trade-off:** The first council is rules-based and does not yet contribute qualitative event research.
+
+## ADR-016 — Submit one atomic paper spread after a mandatory preview
+
+**Status:** Accepted
+
+**Decision:** Use Alpaca's multi-leg order class with a positive debit limit, explicit opening intents, an idempotent client order ID, and all covered legs in one request. Always execute the CLI dry run before submission and require a process-local paper unlock.
+
+**Reasoning:** Entering legs separately can create accidental naked exposure or a position different from the approved payoff. Persistent default unlocking would also broaden the consequences of a later mistake.
+
+**Impact:** A 12/12-approved structure can reach the paper broker and produce sanitized preview, submission, and reconciliation events in the journal.
+
+**Trade-off:** The runner refuses a second proposal while positions or open orders exist, and it cannot yet automate exits or calculate portfolio-wide maximum risk.

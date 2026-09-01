@@ -5,6 +5,7 @@ import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
 import { runAgentCouncil } from '../lib/agent-council';
 import type { DecisionHistoryItem } from '../lib/decision-history';
 import type { OptionScan, OptionScanBatch } from '../lib/option-intelligence';
+import type { PaperOrderEvent } from '../lib/paper-order';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor';
 import { evaluateProposal } from '../lib/risk-governor';
 
@@ -73,6 +74,7 @@ export default function Home() {
   const [snapshot, setSnapshot] = useState<AlpacaSnapshot | null>(null);
   const [scanBatch, setScanBatch] = useState<OptionScanBatch | null>(null);
   const [decisionHistory, setDecisionHistory] = useState<DecisionHistoryItem[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<PaperOrderEvent[]>([]);
   const [telemetryError, setTelemetryError] = useState(false);
   const [historyError, setHistoryError] = useState(false);
 
@@ -89,12 +91,15 @@ export default function Home() {
         const telemetryPayload = (await telemetryResponse.json()) as { snapshot: AlpacaSnapshot | null };
         const scanPayload = (await scanResponse.json()) as { batch: OptionScanBatch | null };
         const historyPayload = historyResponse.ok
-          ? (await historyResponse.json()) as { decisions: DecisionHistoryItem[] }
-          : { decisions: [] };
+          ? (await historyResponse.json()) as { decisions: DecisionHistoryItem[]; trades: PaperOrderEvent[] }
+          : { decisions: [], trades: [] };
         if (active) {
           setSnapshot(telemetryPayload.snapshot);
           setScanBatch(scanPayload.batch);
-          if (historyResponse.ok) setDecisionHistory(historyPayload.decisions);
+          if (historyResponse.ok) {
+            setDecisionHistory(historyPayload.decisions);
+            setTradeHistory(historyPayload.trades);
+          }
           setTelemetryError(false);
           setHistoryError(!historyResponse.ok);
         }
@@ -126,8 +131,9 @@ export default function Home() {
   const candidate = leader?.status === 'candidate';
   const construction = leader ? constructPosition(leader) : null;
   const position = construction?.status === 'constructed' ? construction.position : null;
+  const councilVotes = position && leader ? runAgentCouncil(leader, position) : [];
   const proposalDecision = position && snapshot && snapshot.positions.length === 0
-    ? evaluateProposal(toTradeProposal(position, runAgentCouncil(leader!, position)), {
+    ? evaluateProposal(toTradeProposal(position, councilVotes), {
         openRisk: 0,
         dailyDrawdown,
         competitionDrawdown: Math.max(0, STARTING_EQUITY - snapshot.account.equity),
@@ -140,6 +146,8 @@ export default function Home() {
         : `${leader.symbol} cleared every signal gate`
       : `${leader.symbol} correctly abstained`
     : 'Waiting for the first real option scan';
+  const submittedTrades = tradeHistory.filter((event) => event.eventType === 'submitted');
+  const latestTradeEvent = tradeHistory[0] ?? null;
 
   return (
     <main className="app-shell">
@@ -317,18 +325,39 @@ export default function Home() {
             <aside className="trade-history-card" id="positions">
               <p className="eyebrow">BROKER RECONCILIATION</p>
               <div className="trade-count">
-                <strong>0</strong>
-                <span>TRADE EVENTS RECORDED</span>
+                <strong>{submittedTrades.length}</strong>
+                <span>PAPER ORDERS SUBMITTED</span>
               </div>
-              <h3>No submitted trades yet</h3>
-              <p>This journal has no order, fill, or closed-position events because VolGuard has not submitted an order. The latest read-only Alpaca snapshot reports {snapshot ? snapshot.openOrders.length : '—'} open orders and {snapshot ? snapshot.positions.length : '—'} positions.</p>
+              <h3>{latestTradeEvent
+                ? latestTradeEvent.eventType === 'reconciled'
+                  ? `${latestTradeEvent.symbol} broker status: ${latestTradeEvent.brokerStatus}`
+                  : latestTradeEvent.eventType === 'submitted'
+                  ? `${latestTradeEvent.symbol} paper order accepted`
+                  : latestTradeEvent.eventType === 'rejected'
+                    ? `${latestTradeEvent.symbol} submission rejected`
+                    : `${latestTradeEvent.symbol} order preview validated`
+                : 'No submitted trades yet'}</h3>
+              <p>{latestTradeEvent
+                ? latestTradeEvent.message
+                : 'The execution journal is ready, but no order event has been recorded.'} The latest read-only Alpaca snapshot reports {snapshot ? snapshot.openOrders.length : '—'} open orders and {snapshot ? snapshot.positions.length : '—'} positions.</p>
+              {!!tradeHistory.length && (
+                <div className="trade-event-list">
+                  {tradeHistory.slice(0, 4).map((event) => (
+                    <div key={event.eventKey}>
+                      <span className={`trade-event-status ${event.eventType}`}>{event.eventType === 'reconciled' ? event.brokerStatus.toUpperCase() : event.eventType.toUpperCase()}</span>
+                      <strong>{event.symbol} · {strategyLabel(event.strategy)}</strong>
+                      <small>{historyTimeLabel(event.recordedAt)} ET · {money(event.maxLoss, 0)} max loss · {event.filledAveragePrice === null ? `${money(event.limitDebit)} limit` : `${money(event.filledAveragePrice)} fill`}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
               <dl className="capture-status">
                 <div><dt>Signal decisions</dt><dd className="live">LIVE</dd></div>
-                <div><dt>Order submissions</dt><dd>LOCKED</dd></div>
+                <div><dt>Order previews</dt><dd className="live">LIVE</dd></div>
+                <div><dt>Submitted orders</dt><dd className={submittedTrades.length ? 'live' : ''}>{submittedTrades.length || 'NONE'}</dd></div>
                 <div><dt>Fills &amp; exits</dt><dd>NEXT</dd></div>
-                <div><dt>Realized P&amp;L</dt><dd>NEXT</dd></div>
               </dl>
-              <small className="capture-note">A candidate is research evidence, not a trade. Order history begins only after a paper order is deliberately enabled and reconciled.</small>
+              <small className="capture-note">A preview is not a trade. Submission unlocks for one deliberate local run; fills, exits, and realized P&amp;L still require broker reconciliation.</small>
             </aside>
           </div>
         </section>
@@ -379,6 +408,21 @@ export default function Home() {
             )}
             {proposalDecision && (
               <>
+                <p className="trace-summary"><b>Specialist council.</b> Regime and volatility agents must produce evidence-based approvals, while the red team may veto. The catalyst agent abstains until a verified event feed exists; it never invents clearance.</p>
+                <div className="gate-list">
+                  {councilVotes.map((vote, index) => {
+                    const abstained = !vote.approved && vote.agent !== 'red_team';
+                    return (
+                      <div className="gate" key={vote.agent}>
+                        <span className={vote.approved ? 'pass' : abstained ? 'abstain' : 'fail'}>
+                          {vote.approved ? '✓' : abstained ? '·' : '×'}
+                        </span>
+                        <div><small>AGENT {String(index + 1).padStart(2, '0')}</small><b>{vote.agent.replace('_', ' ').toUpperCase()}</b></div>
+                        <p>{vote.approved ? 'APPROVE' : abstained ? 'ABSTAIN' : 'VETO'} · {vote.rationale}</p>
+                      </div>
+                    );
+                  })}
+                </div>
                 <p className="trace-summary"><b>Portfolio risk gates.</b> Passing the $500 sizing gate does not authorize a trade; every gate, including the independent council, must pass.</p>
                 <div className="gate-list">
                   {proposalDecision.gates.map((item, index) => (

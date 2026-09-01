@@ -15,7 +15,7 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
     || value.source !== 'volguard-runner'
     || value.mode !== 'paper'
     || typeof value.eventKey !== 'string'
-    || !['previewed', 'submitted', 'rejected'].includes(String(value.eventType))
+    || !['previewed', 'submitted', 'rejected', 'reconciled'].includes(String(value.eventType))
     || typeof value.recordedAt !== 'string'
     || typeof value.proposalId !== 'string'
     || typeof value.clientOrderId !== 'string'
@@ -28,6 +28,8 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
     || !finite(value.maxLoss)
     || !(value.maxProfit === null || finite(value.maxProfit))
     || typeof value.brokerStatus !== 'string'
+    || !finite(value.filledQuantity)
+    || !(value.filledAveragePrice === null || finite(value.filledAveragePrice))
     || typeof value.message !== 'string'
   ) return false;
   if (!Array.isArray(value.legs) || value.legs.length < 2 || value.legs.length > 4) return false;

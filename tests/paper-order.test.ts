@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AgentVote, RiskDecision } from '../lib/domain.ts';
 import { isPaperOrderEvent } from '../lib/paper-order-contract.ts';
-import { buildMlegOrderArgs, createPaperOrderEvent, paperClientOrderId } from '../lib/paper-order.ts';
+import {
+  buildMlegOrderArgs,
+  createPaperOrderEvent,
+  paperClientOrderId,
+  reconcilePaperOrderEvent,
+} from '../lib/paper-order.ts';
 import type { ConstructedPosition } from '../lib/position-constructor.ts';
 
 const position: ConstructedPosition = {
@@ -59,4 +64,23 @@ test('creates a sanitized, idempotent event without a broker order id', () => {
   assert.equal(event.eventKey, `${event.clientOrderId}:previewed`);
   assert.equal(isPaperOrderEvent(event), true);
   assert.equal(JSON.stringify(event).includes('broker-order-id'), false);
+});
+
+test('creates a separate reconciled fill event from a sanitized client id', () => {
+  const source = createPaperOrderEvent({
+    eventType: 'submitted', capturedAt: '2026-09-01T13:33:12.747Z',
+    recordedAt: '2026-09-01T13:34:00.000Z',
+    position, votes, decision, brokerStatus: 'accepted', message: 'Accepted',
+  });
+  const reconciled = reconcilePaperOrderEvent(source, {
+    client_order_id: source.clientOrderId,
+    status: 'filled',
+    filled_qty: '1',
+    filled_avg_price: '4.18',
+  }, '2026-09-01T13:35:00.000Z');
+  assert.equal(reconciled.eventType, 'reconciled');
+  assert.equal(reconciled.brokerStatus, 'filled');
+  assert.equal(reconciled.filledQuantity, 1);
+  assert.equal(reconciled.filledAveragePrice, 4.18);
+  assert.equal(isPaperOrderEvent(reconciled), true);
 });

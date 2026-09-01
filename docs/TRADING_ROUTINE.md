@@ -61,6 +61,8 @@ For an oversized two-sided volatility signal, run the wing optimizer before givi
 
 This structure preserves two-sided volatility exposure while capping both loss and profit. It introduces four-leg fill and pin risk, so never leg into it manually; the future execution step must preview one complex paper order. If no valid wing combination exists, retain the original straddle only as evidence for a deterministic risk block.
 
+For a directional signal, buy the ATM option and sell a same-type out-of-the-money wing near the modeled move. A bearish thesis uses a bear-put spread; a bullish thesis uses a bull-call spread. Maximum loss is the conservative net debit times 100, and maximum profit is the strike width minus that debit. Reject the structure if either leg is stale, illiquid, too wide, or if the minimum unit exceeds $500.
+
 ### 5. Form a falsifiable thesis
 
 Every proposal must state:
@@ -78,6 +80,8 @@ The option scan supplies a market hypothesis, expiration, ATM evidence, and sugg
 
 The Regime, Volatility, Catalyst, and Red-Team roles provide independent structured assessments. Disagreement is preserved rather than averaged away.
 
+The first council is deliberately transparent: Regime tests directional alignment, Volatility tests edge and execution quality, Catalyst abstains when no verified event feed exists, and Red Team vetoes malformed, uncovered, same-day, unprofitable, or over-budget positions. At least two non-red-team approvals plus a red-team non-veto are required. These votes cannot bypass any deterministic gate.
+
 ### 7. Apply deterministic gates
 
 The proposal must pass every gate. Confidence cannot compensate for a failed risk or liquidity condition.
@@ -85,6 +89,8 @@ The proposal must pass every gate. Confidence cannot compensate for a failed ris
 ### 8. Preview execution
 
 Use a dry run first. Check contract symbols, leg intentions, quantity, limit price, maximum loss, and client order ID.
+
+The execution runner accepts only account and scan evidence no more than 60 seconds old. It sends one multi-leg request with buy-to-open and sell-to-open intents, never separate manual legs. Paper submission is unlocked only for that deliberate local process; the default environment remains locked afterward.
 
 ### 9. Monitor the thesis
 
@@ -99,6 +105,8 @@ Match proposals, orders, fills, positions, and account activity. An unexplained 
 Preserve the final telemetry snapshot for the session. The append-only history makes it possible to reconstruct what the dashboard knew at a particular time instead of silently replacing earlier evidence.
 
 Open the dashboard journal and review every candidate and abstention. Start with the recorded stop reason: repeated failures in freshness or liquidity usually point to data timing or execution quality, while repeated edge failures mean the scanner is correctly declining weak pricing. Never count a signal candidate as a trade; the trade ledger remains empty until an order event is captured and matched to a broker record.
+
+Run the read-only order reconciler after submission and during the session. It appends a new event only when Alpaca reports a new status or filled quantity, using the VolGuard client order ID rather than exposing the broker order ID.
 
 ### 11. Review process before outcome
 

@@ -15,6 +15,13 @@
       "when": 1788100031901,
       "tag": "0001_melted_james_howlett",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788271922450,
+      "tag": "0002_optimal_romulus",
+      "breakpoints": true
     }
   ]
 }

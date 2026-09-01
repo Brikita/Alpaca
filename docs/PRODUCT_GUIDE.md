@@ -72,11 +72,11 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Purpose:** Turn an eligible strategy signal into explicit option symbols, quantity, quoted debit, and theoretical maximum loss before portfolio approval.
 
-**Strengths:** Risk is calculated from real contract prices rather than a strategy label. Long straddles are fully defined, and the wing optimizer can convert an oversized two-sided volatility signal into a four-leg reverse iron butterfly. Its maximum debit uses conservative buy-at-ask and sell-at-bid prices rather than optimistic midpoints.
+**Strengths:** Risk is calculated from real contract prices rather than a strategy label. Long straddles are fully defined; the wing optimizer can convert oversized two-sided volatility into a reverse iron butterfly; and directional signals become covered bull-call or bear-put verticals. Every optimized debit uses conservative buy-at-ask and sell-at-bid prices rather than optimistic midpoints.
 
 **Uses:** Enforce the per-trade budget, create an auditable order preview, and explain why a market opportunity may still be unaffordable.
 
-**Current limitation:** The first optimizer release supports long-straddle signals only. Directional vertical spreads and short-volatility iron condors still fail closed. Multi-leg order preview and live open-risk aggregation are not implemented.
+**Current limitation:** Short-volatility iron-condor construction still fails closed. Open-position maximum risk must be modeled before VolGuard may consider a second position.
 
 ### Twelve-gate risk governor
 
@@ -86,7 +86,17 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade approval, incident analysis, and judge-facing explanation.
 
-**Current limitation:** The governor is invoked only after concrete construction. The agent council is not implemented yet, so even a budget-compliant structure remains blocked at that final gate.
+**Current limitation:** The first council is a transparent evidence-driven specialist layer, not a hosted language-model service. Its catalyst specialist abstains until a verified event feed is connected; two positive specialists and a non-vetoing red team are still required.
+
+### Atomic paper-order execution
+
+**Purpose:** Convert a fresh 12/12-approved position into one Alpaca multi-leg limit order without manually entering individual legs.
+
+**Strengths:** Always runs the broker dry-run first; uses one idempotent VolGuard client order ID; sends two to four legs atomically with explicit opening intents; uses the conservative net debit as the limit; refuses evidence older than 60 seconds; and requires a deliberate one-run paper unlock. Live routing remains prohibited.
+
+**Uses:** Safe paper execution, reproducible demonstrations, and testing the complete signal-to-broker workflow.
+
+**Current limitation:** Paper fills can differ from live execution. The runner refuses another proposal while any position or open order exists because aggregated options maximum risk is not yet modeled.
 
 ### Alpaca CLI safety boundary
 
@@ -94,7 +104,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Strengths:** Arguments are passed without a shell; live mode is rejected; dry runs remain available while execution is locked.
 
-**Uses:** Account checks, market data, order previews, and later paper-order execution.
+**Uses:** Account checks, market data, order previews, deliberate paper-order execution, and read-only reconciliation.
 
 **Current limitation:** The CLI runs on the local Windows runner, so continuous updates require that runner or a scheduled local task to be online.
 
@@ -136,7 +146,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade review, demonstrations, post-trade analysis, and debugging.
 
-**Current limitation:** The trace now shows signal checks, exact legs, conservative limit prices, and all twelve portfolio-risk gates. Agent rationales and order-preview evidence will be added with the council milestone.
+**Current limitation:** The trace shows signal checks, exact legs, council rationales, and all twelve portfolio-risk gates. Order lifecycle events live in the journal; exit-policy evidence is not implemented yet.
 
 ### Decision and trade history
 
@@ -146,7 +156,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** End-of-day review, explaining VolGuard to judges, identifying frequently failed filters, and building a dataset for later expectancy analysis.
 
-**Current limitation:** The journal records signal decisions today. Submitted orders, fills, exits, and realized P&L remain explicitly empty until a paper-order event contract and Alpaca reconciliation collector are implemented.
+**Current limitation:** The journal now records previews, submissions, broker status, filled quantity, and average fill when Alpaca reports it. Exit orders, closed-position matching, and realized P&L attribution remain next.
 
 ### Responsive operator interface
 

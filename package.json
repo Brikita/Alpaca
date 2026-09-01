@@ -14,6 +14,8 @@
     "snapshot:alpaca": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/alpaca-snapshot.ts",
     "scan:options": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/option-scan.ts",
     "evaluate:latest": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/evaluate-latest-scan.ts",
+    "execute:latest": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/execute-latest-paper-order.ts",
+    "reconcile:orders": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/reconcile-paper-orders.ts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

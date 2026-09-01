@@ -3,7 +3,7 @@ import { DEFAULT_RISK_POLICY } from './domain.ts';
 import { runAlpaca, type AlpacaEnvironment } from './alpaca-cli.ts';
 import type { ConstructedPosition } from './position-constructor.ts';
 
-export type PaperOrderEventType = 'previewed' | 'submitted' | 'rejected';
+export type PaperOrderEventType = 'previewed' | 'submitted' | 'rejected' | 'reconciled';
 
 export interface PaperOrderEvent {
   schemaVersion: 1;
@@ -30,14 +30,18 @@ export interface PaperOrderEvent {
   councilVotes: AgentVote[];
   riskDecision: RiskDecision;
   brokerStatus: string;
+  filledQuantity: number;
+  filledAveragePrice: number | null;
   message: string;
 }
 
-interface AlpacaOrderResponse {
+export interface AlpacaOrderResponse {
   client_order_id?: string;
   status?: string;
   submitted_at?: string;
   order_class?: string;
+  filled_qty?: string;
+  filled_avg_price?: string | null;
 }
 
 export function paperClientOrderId(position: ConstructedPosition, capturedAt: string): string {
@@ -92,6 +96,8 @@ export function createPaperOrderEvent(input: {
   votes: AgentVote[];
   decision: RiskDecision;
   brokerStatus: string;
+  filledQuantity?: number;
+  filledAveragePrice?: number | null;
   message: string;
 }): PaperOrderEvent {
   const clientOrderId = paperClientOrderId(input.position, input.capturedAt);
@@ -120,8 +126,51 @@ export function createPaperOrderEvent(input: {
     councilVotes: input.votes,
     riskDecision: input.decision,
     brokerStatus: input.brokerStatus,
+    filledQuantity: input.filledQuantity ?? 0,
+    filledAveragePrice: input.filledAveragePrice ?? null,
     message: input.message,
   };
+}
+
+function number(value: string | undefined): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function reconcilePaperOrderEvent(
+  source: PaperOrderEvent,
+  brokerOrder: AlpacaOrderResponse,
+  recordedAt = new Date().toISOString(),
+): PaperOrderEvent {
+  const brokerStatus = brokerOrder.status ?? 'unknown';
+  const filledQuantity = number(brokerOrder.filled_qty);
+  const parsedAverage = brokerOrder.filled_avg_price === null
+    ? null
+    : number(brokerOrder.filled_avg_price);
+  const filledAveragePrice = parsedAverage && parsedAverage > 0 ? parsedAverage : null;
+  return {
+    ...source,
+    eventKey: `${source.clientOrderId}:reconciled:${brokerStatus}:${filledQuantity}`,
+    eventType: 'reconciled',
+    recordedAt,
+    brokerStatus,
+    filledQuantity,
+    filledAveragePrice,
+    message: filledQuantity > 0
+      ? `Broker reconciliation reports ${filledQuantity} strategy unit filled${filledAveragePrice === null ? '' : ` at $${filledAveragePrice}`}.`
+      : `Broker reconciliation reports order status ${brokerStatus} with no filled quantity yet.`,
+  };
+}
+
+export async function reconcilePaperOrder(
+  source: PaperOrderEvent,
+  environment: AlpacaEnvironment = process.env,
+): Promise<PaperOrderEvent | null> {
+  const result = await runAlpaca<AlpacaOrderResponse[]>([
+    'order', 'list', '--status', 'all', '--nested', '--limit', '100',
+  ], { ...environment, ALPACA_LIVE_TRADE: 'false' });
+  const brokerOrder = result.data.find((order) => order.client_order_id === source.clientOrderId);
+  return brokerOrder ? reconcilePaperOrderEvent(source, brokerOrder) : null;
 }
 
 export async function runPaperOrder(
@@ -147,6 +196,10 @@ export async function runPaperOrder(
     votes,
     decision,
     brokerStatus: dryRun ? 'previewed' : result.data.status ?? 'submitted',
+    filledQuantity: dryRun ? 0 : number(result.data.filled_qty),
+    filledAveragePrice: dryRun || !result.data.filled_avg_price
+      ? null
+      : number(result.data.filled_avg_price),
     message: dryRun
       ? 'Alpaca CLI validated the atomic multi-leg request without submission.'
       : `Alpaca paper API accepted the atomic multi-leg order at a $${position.netDebit.toFixed(2)} debit limit.`,

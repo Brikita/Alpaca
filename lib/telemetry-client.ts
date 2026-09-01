@@ -1,5 +1,6 @@
 import type { AlpacaSnapshot } from './alpaca-snapshot.ts';
 import type { OptionScanBatch } from './option-intelligence.ts';
+import type { PaperOrderEvent } from './paper-order.ts';
 
 async function publishPayload(
   payload: unknown,
@@ -44,4 +45,13 @@ export async function publishOptionScanBatch(
   sitesBypassToken?: string,
 ): Promise<void> {
   await publishPayload(batch, endpoint, token, 'Option scan', sitesBypassToken);
+}
+
+export async function publishPaperOrderEvent(
+  event: PaperOrderEvent,
+  endpoint: string,
+  token: string,
+  sitesBypassToken?: string,
+): Promise<void> {
+  await publishPayload(event, endpoint, token, 'Paper order event', sitesBypassToken);
 }
