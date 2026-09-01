@@ -11,6 +11,7 @@ const SAFE_READ_COMMANDS = new Set([
   'data snapshot',
   'data bars',
   'data option chain',
+  'data option latest-quotes',
   'data option snapshot',
   'data news',
   'option contracts',
@@ -42,12 +43,29 @@ export function assertCommandAllowed(
   const isDryRun = args[0] === 'order' && args[1] === 'submit' && args.includes('--dry-run');
   if (isDryRun) return;
 
-  const executionUnlocked =
+  const entryUnlocked =
     environment.VOLGUARD_EXECUTION_ENABLED === 'paper' &&
     args[0] === 'order' &&
     args[1] === 'submit';
+  const legsIndex = args.indexOf('--legs');
+  let closingLegs = false;
+  if (legsIndex >= 0 && typeof args[legsIndex + 1] === 'string') {
+    try {
+      const legs = JSON.parse(args[legsIndex + 1]) as Array<{ position_intent?: string }>;
+      closingLegs = legs.length >= 2 && legs.every((leg) => (
+        leg.position_intent === 'buy_to_close' || leg.position_intent === 'sell_to_close'
+      ));
+    } catch {
+      closingLegs = false;
+    }
+  }
+  const exitUnlocked =
+    environment.VOLGUARD_EXIT_ENABLED === 'paper' &&
+    args[0] === 'order' &&
+    args[1] === 'submit' &&
+    closingLegs;
 
-  if (!executionUnlocked) {
+  if (!entryUnlocked && !exitUnlocked) {
     throw new Error('Command blocked by the VolGuard execution lock.');
   }
 }
