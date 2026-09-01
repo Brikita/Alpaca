@@ -1,0 +1,49 @@
+import type { PaperOrderEvent } from './paper-order.ts';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function finite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
+  if (!isRecord(value)) return false;
+  if (
+    value.schemaVersion !== 1
+    || value.source !== 'volguard-runner'
+    || value.mode !== 'paper'
+    || typeof value.eventKey !== 'string'
+    || !['previewed', 'submitted', 'rejected'].includes(String(value.eventType))
+    || typeof value.recordedAt !== 'string'
+    || typeof value.proposalId !== 'string'
+    || typeof value.clientOrderId !== 'string'
+    || !value.clientOrderId.startsWith('volguard-')
+    || typeof value.symbol !== 'string'
+    || typeof value.strategy !== 'string'
+    || typeof value.expiration !== 'string'
+    || !finite(value.quantity)
+    || !finite(value.limitDebit)
+    || !finite(value.maxLoss)
+    || !(value.maxProfit === null || finite(value.maxProfit))
+    || typeof value.brokerStatus !== 'string'
+    || typeof value.message !== 'string'
+  ) return false;
+  if (!Array.isArray(value.legs) || value.legs.length < 2 || value.legs.length > 4) return false;
+  if (!value.legs.every((leg) => isRecord(leg)
+    && typeof leg.symbol === 'string'
+    && ['buy', 'sell'].includes(String(leg.side))
+    && ['buy_to_open', 'sell_to_open'].includes(String(leg.positionIntent))
+    && leg.ratioQuantity === 1
+  )) return false;
+  if (!Array.isArray(value.councilVotes) || value.councilVotes.length !== 4) return false;
+  if (!isRecord(value.riskDecision)
+    || value.riskDecision.approved !== true
+    || value.riskDecision.passed !== value.riskDecision.total
+    || !Array.isArray(value.riskDecision.gates)
+  ) return false;
+  return value.maxLoss > 0 && value.maxLoss <= DEFAULT_MAX_LOSS;
+}
+
+const DEFAULT_MAX_LOSS = 500;
