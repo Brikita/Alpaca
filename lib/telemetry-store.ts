@@ -127,3 +127,19 @@ export async function latestOptionScanBatch(): Promise<OptionScanBatch | null> {
     .first<{ payload_json: string }>();
   return row ? (JSON.parse(row.payload_json) as OptionScanBatch) : null;
 }
+
+export async function recentOptionScanBatches(limit = 12): Promise<OptionScanBatch[]> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  const safeLimit = Math.max(1, Math.min(30, Math.floor(limit)));
+  const result = await database
+    .prepare(`
+      SELECT payload_json
+      FROM option_scan_batches
+      ORDER BY captured_at DESC
+      LIMIT ?
+    `)
+    .bind(safeLimit)
+    .all<{ payload_json: string }>();
+  return result.results.map((row) => JSON.parse(row.payload_json) as OptionScanBatch);
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
+import type { DecisionHistoryItem } from '../lib/decision-history';
 import type { OptionScan, OptionScanBatch } from '../lib/option-intelligence';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor';
 import { evaluateProposal } from '../lib/risk-governor';
@@ -27,6 +28,13 @@ function timeLabel(value: string | null | undefined): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('en-US', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/New_York', hour12: false,
+  }).format(new Date(value));
+}
+
+function historyTimeLabel(value: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/New_York', hour12: false,
   }).format(new Date(value));
 }
 
@@ -63,23 +71,31 @@ export default function Home() {
   const [agentRunning, setAgentRunning] = useState(true);
   const [snapshot, setSnapshot] = useState<AlpacaSnapshot | null>(null);
   const [scanBatch, setScanBatch] = useState<OptionScanBatch | null>(null);
+  const [decisionHistory, setDecisionHistory] = useState<DecisionHistoryItem[]>([]);
   const [telemetryError, setTelemetryError] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
 
   useEffect(() => {
     let active = true;
     async function refreshDashboard() {
       try {
-        const [telemetryResponse, scanResponse] = await Promise.all([
+        const [telemetryResponse, scanResponse, historyResponse] = await Promise.all([
           fetch('/api/telemetry', { cache: 'no-store' }),
           fetch('/api/scans', { cache: 'no-store' }),
+          fetch('/api/history', { cache: 'no-store' }),
         ]);
         if (!telemetryResponse.ok || !scanResponse.ok) throw new Error('Dashboard data unavailable');
         const telemetryPayload = (await telemetryResponse.json()) as { snapshot: AlpacaSnapshot | null };
         const scanPayload = (await scanResponse.json()) as { batch: OptionScanBatch | null };
+        const historyPayload = historyResponse.ok
+          ? (await historyResponse.json()) as { decisions: DecisionHistoryItem[] }
+          : { decisions: [] };
         if (active) {
           setSnapshot(telemetryPayload.snapshot);
           setScanBatch(scanPayload.batch);
+          if (historyResponse.ok) setDecisionHistory(historyPayload.decisions);
           setTelemetryError(false);
+          setHistoryError(!historyResponse.ok);
         }
       } catch {
         if (active) setTelemetryError(true);
@@ -257,6 +273,64 @@ export default function Home() {
             <p className={`risk-message ${accountReady ? '' : 'waiting'}`}><span>{accountReady ? '✓' : '·'}</span> {accountReady ? 'Account ready for analysis' : 'Waiting for verified account state'}</p>
           </aside>
         </div>
+
+        <section className="journal-section" id="journal" aria-labelledby="journal-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">APPEND-ONLY REVIEW LOG</p>
+              <h2 id="journal-title">Decision &amp; trade history</h2>
+            </div>
+            <span>{decisionHistory.length} recent decisions</span>
+          </div>
+
+          <div className="journal-grid">
+            <article className="history-card">
+              <div className="history-head">
+                <strong>Signal decisions</strong>
+                <small>Newest first · Eastern Time</small>
+              </div>
+              <div className="history-list">
+                {decisionHistory.map((item) => (
+                  <div className="history-row" key={item.id}>
+                    <time dateTime={item.capturedAt}>{historyTimeLabel(item.capturedAt)}</time>
+                    <b className="history-symbol">{item.symbol}</b>
+                    <span className={`history-outcome ${item.status}`}>
+                      {item.status === 'candidate' ? 'CANDIDATE' : item.status.toUpperCase()}
+                    </span>
+                    <div className="history-strategy">
+                      <strong>{strategyLabel(item.strategy)}</strong>
+                      <small>Expiry {item.expiration} · {item.checksPassed}/{item.checksTotal} gates</small>
+                    </div>
+                    <p>{item.reason}</p>
+                  </div>
+                ))}
+                {!decisionHistory.length && (
+                  <div className="history-empty">
+                    <strong>{historyError ? 'History is temporarily unavailable' : 'Waiting for the first stored decision'}</strong>
+                    <p>{historyError ? 'The live dashboard can still operate; this review panel will retry automatically.' : 'Each completed option scan will appear here, including abstentions.'}</p>
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <aside className="trade-history-card" id="positions">
+              <p className="eyebrow">BROKER RECONCILIATION</p>
+              <div className="trade-count">
+                <strong>0</strong>
+                <span>TRADE EVENTS RECORDED</span>
+              </div>
+              <h3>No submitted trades yet</h3>
+              <p>This journal has no order, fill, or closed-position events because VolGuard has not submitted an order. The latest read-only Alpaca snapshot reports {snapshot ? snapshot.openOrders.length : '—'} open orders and {snapshot ? snapshot.positions.length : '—'} positions.</p>
+              <dl className="capture-status">
+                <div><dt>Signal decisions</dt><dd className="live">LIVE</dd></div>
+                <div><dt>Order submissions</dt><dd>LOCKED</dd></div>
+                <div><dt>Fills &amp; exits</dt><dd>NEXT</dd></div>
+                <div><dt>Realized P&amp;L</dt><dd>NEXT</dd></div>
+              </dl>
+              <small className="capture-note">A candidate is research evidence, not a trade. Order history begins only after a paper order is deliberately enabled and reconciled.</small>
+            </aside>
+          </div>
+        </section>
 
         <footer className="statusbar">
           <span>VOLGUARD AI <b>v0.1.0</b></span>

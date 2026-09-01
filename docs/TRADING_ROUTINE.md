@@ -98,6 +98,8 @@ Match proposals, orders, fills, positions, and account activity. An unexplained 
 
 Preserve the final telemetry snapshot for the session. The append-only history makes it possible to reconstruct what the dashboard knew at a particular time instead of silently replacing earlier evidence.
 
+Open the dashboard journal and review every candidate and abstention. Start with the recorded stop reason: repeated failures in freshness or liquidity usually point to data timing or execution quality, while repeated edge failures mean the scanner is correctly declining weak pricing. Never count a signal candidate as a trade; the trade ledger remains empty until an order event is captured and matched to a broker record.
+
 ### 11. Review process before outcome
 
 Grade rule adherence before looking at whether the trade won or lost. A compliant loss may be a good trade; a profitable rule violation remains a process failure.

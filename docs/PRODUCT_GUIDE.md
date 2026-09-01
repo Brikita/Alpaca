@@ -138,6 +138,16 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Current limitation:** The trace now shows signal checks, exact legs, conservative limit prices, and all twelve portfolio-risk gates. Agent rationales and order-preview evidence will be added with the council milestone.
 
+### Decision and trade history
+
+**Purpose:** Turn the append-only scan database into a chronological review surface instead of showing only the newest market decision.
+
+**Strengths:** Records candidates, abstentions, and unavailable scans; preserves the first failed gate as the stop reason; bounds the public payload; and labels every signal candidate as “not an order.” Rejected setups therefore become part of the evidence rather than disappearing.
+
+**Uses:** End-of-day review, explaining VolGuard to judges, identifying frequently failed filters, and building a dataset for later expectancy analysis.
+
+**Current limitation:** The journal records signal decisions today. Submitted orders, fills, exits, and realized P&L remain explicitly empty until a paper-order event contract and Alpaca reconciliation collector are implemented.
+
 ### Responsive operator interface
 
 **Purpose:** Keep the complete trading workflow usable on phones, tablets, laptops, and large desktop screens instead of treating mobile as a reduced read-only view.

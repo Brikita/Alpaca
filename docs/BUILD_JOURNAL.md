@@ -214,3 +214,22 @@ VolGuard is intended to support a real routine, so readiness checks and rejected
 - No tested viewport produced horizontal overflow, and all five navigation destinations remained available.
 - Primary phone controls measured at least 44 pixels high; section navigation landed above the fixed bar; and the browser reported no console errors.
 - Twenty-five automated tests, TypeScript, lint, and the production build pass.
+
+## 2026-09-01 — Decision-history journal
+
+### What changed
+
+- Exposed recent append-only option-scan batches through a bounded history endpoint.
+- Added a chronological dashboard journal for candidates, abstentions, unavailable scans, strategies, gate counts, and the first stop reason.
+- Added a separate broker reconciliation panel that explicitly reports zero captured trade events and distinguishes signals from orders.
+
+### Why and routine impact
+
+The existing database preserved each scan, but the interface exposed only the newest one. The journal converts those rejected and accepted signal decisions into reviewable evidence for deliberate practice and the hackathon demonstration. After the session, the operator can now identify which gate repeatedly prevented a trade without confusing research candidates with executed positions.
+
+### Verification
+
+- Twenty-seven automated tests pass, including newest-first ordering, failed-gate reasoning, and bounded history payloads.
+- TypeScript and the local application render pass.
+- The feature reads existing D1 records and requires no database migration.
+- No order command was invoked; order, fill, exit, and realized-P&amp;L history remain the next reconciliation milestone.
