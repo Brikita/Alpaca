@@ -1,9 +1,34 @@
 import type { AgentVote, RiskDecision } from './domain.ts';
 import { DEFAULT_RISK_POLICY } from './domain.ts';
 import { runAlpaca, type AlpacaEnvironment } from './alpaca-cli.ts';
+import type { ExitEvaluation, ExitReason } from './exit-policy.ts';
 import type { ConstructedPosition } from './position-constructor.ts';
 
-export type PaperOrderEventType = 'previewed' | 'submitted' | 'rejected' | 'reconciled';
+export type PaperOrderEventType =
+  | 'previewed'
+  | 'submitted'
+  | 'rejected'
+  | 'reconciled'
+  | 'monitored'
+  | 'exit_previewed'
+  | 'exit_submitted'
+  | 'exit_rejected'
+  | 'exit_reconciled';
+
+export interface PaperExitEvidence {
+  entryClientOrderId: string;
+  reason: ExitReason;
+  entryDebit: number;
+  closeCredit: number;
+  unrealizedPnl: number;
+  profitTarget: number;
+  lossLimit: number;
+  timeExitAt: string;
+  quoteAgeSeconds: number;
+  quoteFresh: boolean;
+  positionMatched: boolean;
+  realizedPnl: number | null;
+}
 
 export interface PaperOrderEvent {
   schemaVersion: 1;
@@ -24,7 +49,7 @@ export interface PaperOrderEvent {
   legs: Array<{
     symbol: string;
     side: 'buy' | 'sell';
-    positionIntent: 'buy_to_open' | 'sell_to_open';
+    positionIntent: 'buy_to_open' | 'sell_to_open' | 'buy_to_close' | 'sell_to_close';
     ratioQuantity: number;
   }>;
   councilVotes: AgentVote[];
@@ -32,6 +57,7 @@ export interface PaperOrderEvent {
   brokerStatus: string;
   filledQuantity: number;
   filledAveragePrice: number | null;
+  exit?: PaperExitEvidence;
   message: string;
 }
 
@@ -86,6 +112,161 @@ export function buildMlegOrderArgs(
   ];
   if (dryRun) args.push('--dry-run');
   return args;
+}
+
+export function exitClientOrderId(entryClientOrderId: string): string {
+  return `${entryClientOrderId}-exit`.slice(0, 64);
+}
+
+export function buildMlegExitOrderArgs(
+  entry: PaperOrderEvent,
+  evaluation: ExitEvaluation,
+  clientOrderId: string,
+  dryRun: boolean,
+): string[] {
+  if (!evaluation.shouldExit) {
+    throw new Error('A deterministic, fresh, position-matched exit trigger is required.');
+  }
+  if (entry.legs.length < 2 || entry.legs.length > 4) {
+    throw new Error('A multi-leg exit requires two to four recorded entry legs.');
+  }
+  const legs = entry.legs.map((leg) => {
+    if (leg.positionIntent === 'buy_to_open') {
+      return { symbol: leg.symbol, ratio_qty: '1', side: 'sell', position_intent: 'sell_to_close' };
+    }
+    if (leg.positionIntent === 'sell_to_open') {
+      return { symbol: leg.symbol, ratio_qty: '1', side: 'buy', position_intent: 'buy_to_close' };
+    }
+    throw new Error('Exit construction requires opening intents on the recorded entry.');
+  });
+  const args = [
+    'order', 'submit',
+    '--qty', String(entry.quantity),
+    '--type', 'limit',
+    '--limit-price', (-evaluation.closeCredit).toFixed(2),
+    '--time-in-force', 'day',
+    '--order-class', 'mleg',
+    '--client-order-id', clientOrderId,
+    '--legs', JSON.stringify(legs),
+  ];
+  if (dryRun) args.push('--dry-run');
+  return args;
+}
+
+function exitEvidence(
+  entry: PaperOrderEvent,
+  evaluation: ExitEvaluation,
+  realizedPnl: number | null = null,
+): PaperExitEvidence {
+  return {
+    entryClientOrderId: entry.clientOrderId,
+    reason: evaluation.reason,
+    entryDebit: evaluation.entryDebit,
+    closeCredit: evaluation.closeCredit,
+    unrealizedPnl: evaluation.unrealizedPnl,
+    profitTarget: evaluation.profitTarget,
+    lossLimit: evaluation.lossLimit,
+    timeExitAt: evaluation.timeExitAt,
+    quoteAgeSeconds: evaluation.quoteAgeSeconds,
+    quoteFresh: evaluation.quoteFresh,
+    positionMatched: evaluation.positionMatched,
+    realizedPnl,
+  };
+}
+
+export function createPaperExitEvent(input: {
+  eventType: Extract<PaperOrderEventType, 'monitored' | 'exit_previewed' | 'exit_submitted' | 'exit_rejected'>;
+  entry: PaperOrderEvent;
+  evaluation: ExitEvaluation;
+  recordedAt?: string;
+  brokerStatus: string;
+  filledQuantity?: number;
+  filledAveragePrice?: number | null;
+  message?: string;
+}): PaperOrderEvent {
+  const recordedAt = input.recordedAt ?? new Date().toISOString();
+  const isMonitor = input.eventType === 'monitored';
+  const clientOrderId = isMonitor
+    ? input.entry.clientOrderId
+    : exitClientOrderId(input.entry.clientOrderId);
+  return {
+    ...input.entry,
+    eventKey: isMonitor
+      ? `${input.entry.clientOrderId}:monitored:${recordedAt}`
+      : `${clientOrderId}:${input.eventType}`,
+    eventType: input.eventType,
+    recordedAt,
+    clientOrderId,
+    legs: input.entry.legs.map((leg) => ({
+      symbol: leg.symbol,
+      side: leg.positionIntent === 'buy_to_open' ? 'sell' : 'buy',
+      positionIntent: leg.positionIntent === 'buy_to_open' ? 'sell_to_close' : 'buy_to_close',
+      ratioQuantity: leg.ratioQuantity,
+    })),
+    brokerStatus: input.brokerStatus,
+    filledQuantity: input.filledQuantity ?? 0,
+    filledAveragePrice: input.filledAveragePrice ?? null,
+    exit: exitEvidence(input.entry, input.evaluation),
+    message: input.message ?? input.evaluation.message,
+  };
+}
+
+export function reconcilePaperExitEvent(
+  source: PaperOrderEvent,
+  entry: PaperOrderEvent,
+  brokerOrder: AlpacaOrderResponse,
+  recordedAt = new Date().toISOString(),
+): PaperOrderEvent {
+  if (!source.exit) throw new Error('Exit evidence is required for exit reconciliation.');
+  const brokerStatus = brokerOrder.status ?? 'unknown';
+  const filledQuantity = number(brokerOrder.filled_qty);
+  const parsedAverage = brokerOrder.filled_avg_price === null
+    ? null
+    : Math.abs(number(brokerOrder.filled_avg_price));
+  const filledAveragePrice = parsedAverage && parsedAverage > 0 ? parsedAverage : null;
+  const realizedPnl = filledAveragePrice === null
+    ? null
+    : Math.round(((filledAveragePrice - source.exit.entryDebit) * 100 * filledQuantity + Number.EPSILON) * 100) / 100;
+  return {
+    ...source,
+    eventKey: `${source.clientOrderId}:exit_reconciled:${brokerStatus}:${filledQuantity}`,
+    eventType: 'exit_reconciled',
+    recordedAt,
+    brokerStatus,
+    filledQuantity,
+    filledAveragePrice,
+    exit: { ...source.exit, realizedPnl },
+    message: filledQuantity > 0
+      ? `Broker reconciliation reports ${filledQuantity} spread closed${filledAveragePrice === null ? '' : ` for a $${filledAveragePrice} credit`}${realizedPnl === null ? '' : ` and ${realizedPnl >= 0 ? '$' : '-$'}${Math.abs(realizedPnl)} realized P&L`}.`
+      : `Broker reconciliation reports exit status ${brokerStatus} with no filled quantity yet.`,
+  };
+}
+
+export async function runPaperExit(
+  entry: PaperOrderEvent,
+  evaluation: ExitEvaluation,
+  dryRun: boolean,
+  environment: AlpacaEnvironment = process.env,
+): Promise<PaperOrderEvent> {
+  const clientOrderId = exitClientOrderId(entry.clientOrderId);
+  const result = await runAlpaca<AlpacaOrderResponse>(
+    buildMlegExitOrderArgs(entry, evaluation, clientOrderId, dryRun),
+    { ...environment, ALPACA_LIVE_TRADE: 'false' },
+  );
+  const filledAveragePrice = dryRun || !result.data.filled_avg_price
+    ? null
+    : Math.abs(number(result.data.filled_avg_price));
+  return createPaperExitEvent({
+    eventType: dryRun ? 'exit_previewed' : 'exit_submitted',
+    entry,
+    evaluation,
+    brokerStatus: dryRun ? 'previewed' : result.data.status ?? 'submitted',
+    filledQuantity: dryRun ? 0 : number(result.data.filled_qty),
+    filledAveragePrice,
+    message: dryRun
+      ? 'Alpaca CLI validated the atomic closing order without submission.'
+      : `Alpaca paper API accepted the atomic closing order at a $${evaluation.closeCredit.toFixed(2)} credit limit.`,
+  });
 }
 
 export function createPaperOrderEvent(input: {

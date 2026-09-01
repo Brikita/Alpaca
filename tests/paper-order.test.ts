@@ -3,11 +3,15 @@ import test from 'node:test';
 import type { AgentVote, RiskDecision } from '../lib/domain.ts';
 import { isPaperOrderEvent } from '../lib/paper-order-contract.ts';
 import {
+  buildMlegExitOrderArgs,
   buildMlegOrderArgs,
   createPaperOrderEvent,
+  createPaperExitEvent,
   paperClientOrderId,
+  reconcilePaperExitEvent,
   reconcilePaperOrderEvent,
 } from '../lib/paper-order.ts';
+import type { ExitEvaluation } from '../lib/exit-policy.ts';
 import type { ConstructedPosition } from '../lib/position-constructor.ts';
 
 const position: ConstructedPosition = {
@@ -82,5 +86,48 @@ test('creates a separate reconciled fill event from a sanitized client id', () =
   assert.equal(reconciled.brokerStatus, 'filled');
   assert.equal(reconciled.filledQuantity, 1);
   assert.equal(reconciled.filledAveragePrice, 4.18);
+  assert.equal(isPaperOrderEvent(reconciled), true);
+});
+
+const exitEvaluation: ExitEvaluation = {
+  evaluatedAt: '2026-09-03T19:00:00.000Z', reason: 'time_exit', shouldExit: true,
+  entryDebit: 4.18, closeCredit: 4.5, unrealizedPnl: 32,
+  profitTarget: 151, lossLimit: 209, timeExitAt: '2026-09-03T19:00:00.000Z',
+  quoteAgeSeconds: 5, quoteFresh: true, positionMatched: true,
+  message: 'Time exit approved',
+};
+
+test('builds one atomic closing credit order with reversed intents', () => {
+  const entry = createPaperOrderEvent({
+    eventType: 'reconciled', capturedAt: '2026-09-01T13:33:12.747Z',
+    recordedAt: '2026-09-01T13:35:00.000Z', position, votes, decision,
+    brokerStatus: 'filled', filledQuantity: 1, filledAveragePrice: 4.18, message: 'Filled',
+  });
+  const args = buildMlegExitOrderArgs(entry, exitEvaluation, `${entry.clientOrderId}-exit`, true);
+  assert.equal(args[args.indexOf('--limit-price') + 1], '-4.50');
+  assert.equal(args.includes('--dry-run'), true);
+  const legs = JSON.parse(args[args.indexOf('--legs') + 1]);
+  assert.deepEqual(legs.map((leg: { position_intent: string }) => leg.position_intent), [
+    'sell_to_close', 'buy_to_close',
+  ]);
+});
+
+test('records exit monitoring and realized P&L without broker identifiers', () => {
+  const entry = createPaperOrderEvent({
+    eventType: 'reconciled', capturedAt: '2026-09-01T13:33:12.747Z',
+    recordedAt: '2026-09-01T13:35:00.000Z', position, votes, decision,
+    brokerStatus: 'filled', filledQuantity: 1, filledAveragePrice: 4.18, message: 'Filled',
+  });
+  const submitted = createPaperExitEvent({
+    eventType: 'exit_submitted', entry, evaluation: exitEvaluation,
+    recordedAt: '2026-09-03T19:00:00.000Z', brokerStatus: 'accepted',
+  });
+  assert.equal(isPaperOrderEvent(submitted), true);
+  const reconciled = reconcilePaperExitEvent(submitted, entry, {
+    client_order_id: submitted.clientOrderId, status: 'filled', filled_qty: '1', filled_avg_price: '-4.47',
+  }, '2026-09-03T19:01:00.000Z');
+  assert.equal(reconciled.eventType, 'exit_reconciled');
+  assert.equal(reconciled.filledAveragePrice, 4.47);
+  assert.equal(reconciled.exit?.realizedPnl, 29);
   assert.equal(isPaperOrderEvent(reconciled), true);
 });

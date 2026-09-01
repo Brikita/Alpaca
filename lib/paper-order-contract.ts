@@ -15,7 +15,10 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
     || value.source !== 'volguard-runner'
     || value.mode !== 'paper'
     || typeof value.eventKey !== 'string'
-    || !['previewed', 'submitted', 'rejected', 'reconciled'].includes(String(value.eventType))
+    || ![
+      'previewed', 'submitted', 'rejected', 'reconciled', 'monitored',
+      'exit_previewed', 'exit_submitted', 'exit_rejected', 'exit_reconciled',
+    ].includes(String(value.eventType))
     || typeof value.recordedAt !== 'string'
     || typeof value.proposalId !== 'string'
     || typeof value.clientOrderId !== 'string'
@@ -36,7 +39,7 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
   if (!value.legs.every((leg) => isRecord(leg)
     && typeof leg.symbol === 'string'
     && ['buy', 'sell'].includes(String(leg.side))
-    && ['buy_to_open', 'sell_to_open'].includes(String(leg.positionIntent))
+    && ['buy_to_open', 'sell_to_open', 'buy_to_close', 'sell_to_close'].includes(String(leg.positionIntent))
     && leg.ratioQuantity === 1
   )) return false;
   if (!Array.isArray(value.councilVotes) || value.councilVotes.length !== 4) return false;
@@ -45,6 +48,24 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
     || value.riskDecision.passed !== value.riskDecision.total
     || !Array.isArray(value.riskDecision.gates)
   ) return false;
+  const isExitEvent = ['monitored', 'exit_previewed', 'exit_submitted', 'exit_rejected', 'exit_reconciled']
+    .includes(String(value.eventType));
+  if (isExitEvent) {
+    if (!isRecord(value.exit)
+      || typeof value.exit.entryClientOrderId !== 'string'
+      || !['profit_target', 'loss_limit', 'time_exit', 'hold'].includes(String(value.exit.reason))
+      || !finite(value.exit.entryDebit)
+      || !finite(value.exit.closeCredit)
+      || !finite(value.exit.unrealizedPnl)
+      || !finite(value.exit.profitTarget)
+      || !finite(value.exit.lossLimit)
+      || typeof value.exit.timeExitAt !== 'string'
+      || !finite(value.exit.quoteAgeSeconds)
+      || typeof value.exit.quoteFresh !== 'boolean'
+      || typeof value.exit.positionMatched !== 'boolean'
+      || !(value.exit.realizedPnl === null || finite(value.exit.realizedPnl))
+    ) return false;
+  }
   return value.maxLoss > 0 && value.maxLoss <= DEFAULT_MAX_LOSS;
 }
 
