@@ -54,6 +54,16 @@ interface WingCombination {
   targetDeviation: number;
 }
 
+interface VerticalCombination {
+  wing: OptionContractQuote;
+  netDebit: number;
+  maxLoss: number;
+  maxProfit: number;
+  spreadPct: number;
+  quoteAgeSeconds: number;
+  targetDeviation: number;
+}
+
 function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -194,6 +204,84 @@ function constructLongStraddle(
   };
 }
 
+function optimizeDirectionalSpread(
+  scan: OptionScan,
+  quantity: number,
+  riskBudget: number,
+): ConstructedPosition | null {
+  if (scan.atmStrike === null || scan.underlyingPrice === null || scan.modelMovePct === null) return null;
+  const bearish = scan.strategy === 'bear_put_spread';
+  const bullish = scan.strategy === 'bull_call_spread';
+  if (!bearish && !bullish) return null;
+
+  const strategy: 'bear_put_spread' | 'bull_call_spread' = bearish
+    ? 'bear_put_spread'
+    : 'bull_call_spread';
+  const optionType = bearish ? 'put' : 'call';
+  const long = contractFor(scan, bearish ? scan.putSymbol : scan.callSymbol);
+  if (!long || long.type !== optionType || !validWing(long)) return null;
+
+  const targetWidth = scan.underlyingPrice * (scan.modelMovePct / 100);
+  const wings = scan.contracts.filter((contract) =>
+    contract.type === optionType
+    && (bearish ? contract.strike < scan.atmStrike! : contract.strike > scan.atmStrike!)
+    && validWing(contract),
+  );
+  const combinations: VerticalCombination[] = [];
+
+  for (const wing of wings) {
+    const width = Math.abs(wing.strike - scan.atmStrike);
+    const netDebit = roundCurrency((long.ask - wing.bid) * quantity);
+    if (netDebit <= 0) continue;
+    const maxLoss = roundCurrency(netDebit * 100);
+    const maxProfit = roundCurrency((width * quantity - netDebit) * 100);
+    if (maxLoss > riskBudget || maxProfit <= 0) continue;
+    combinations.push({
+      wing,
+      netDebit,
+      maxLoss,
+      maxProfit,
+      spreadPct: Math.max(long.spreadPct, wing.spreadPct),
+      quoteAgeSeconds: Math.max(long.quoteAgeSeconds, wing.quoteAgeSeconds),
+      targetDeviation: Math.abs(width - targetWidth),
+    });
+  }
+
+  const best = combinations.sort((left, right) =>
+    left.targetDeviation - right.targetDeviation
+    || right.maxProfit - left.maxProfit
+    || left.spreadPct - right.spreadPct,
+  )[0];
+  if (!best) return null;
+
+  const directionLabel = bearish ? 'bearish put' : 'bullish call';
+  return {
+    id: `${scan.symbol}-${scan.expiration}-${scan.atmStrike}-${strategy}`,
+    symbol: scan.symbol,
+    strategy,
+    sourceStrategy: strategy,
+    expiration: scan.expiration,
+    quantity,
+    legs: [
+      { symbol: long.symbol, type: long.type, strike: long.strike, side: 'buy', quantity, midpoint: long.mid, limitPrice: long.ask },
+      { symbol: best.wing.symbol, type: best.wing.type, strike: best.wing.strike, side: 'sell', quantity, midpoint: best.wing.mid, limitPrice: best.wing.bid },
+    ],
+    netDebit: best.netDebit,
+    maxLoss: best.maxLoss,
+    maxProfit: best.maxProfit,
+    riskBudget,
+    optimized: true,
+    pricingBasis: 'buy-ask-sell-bid',
+    rationale: `The ${directionLabel} vertical uses a covered wing near the modeled ${roundCurrency(targetWidth)} move; conservative net debit stays within the $${riskBudget} budget.`,
+    definedRisk: true,
+    nakedShort: false,
+    expiresToday: scan.expiration === scan.capturedAt.slice(0, 10),
+    spreadPct: best.spreadPct,
+    quoteAgeSeconds: best.quoteAgeSeconds,
+    confidence: scan.confidence,
+  };
+}
+
 export function constructPosition(
   scan: OptionScan,
   quantity = 1,
@@ -208,10 +296,16 @@ export function constructPosition(
   if (!Number.isFinite(riskBudget) || riskBudget <= 0) {
     return { status: 'blocked', reason: 'The position requires a positive maximum-loss budget.' };
   }
+  if (scan.strategy === 'bear_put_spread' || scan.strategy === 'bull_call_spread') {
+    const vertical = optimizeDirectionalSpread(scan, quantity, riskBudget);
+    return vertical
+      ? { status: 'constructed', position: vertical }
+      : { status: 'blocked', reason: 'No liquid covered wing produced a positive-payoff vertical within the risk budget.' };
+  }
   if (scan.strategy !== 'long_straddle') {
     return {
       status: 'blocked',
-      reason: `${scan.strategy} wing construction is outside the first optimizer release.`,
+      reason: `${scan.strategy} construction is not implemented.`,
     };
   }
 

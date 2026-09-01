@@ -27,6 +27,28 @@ const budgetedCandidate: OptionScan = {
   ],
 };
 
+const bearishCandidate: OptionScan = {
+  ...qqqCandidate,
+  symbol: 'BEAR', underlyingPrice: 100, atmStrike: 100, modelMovePct: 4,
+  strategy: 'bear_put_spread', direction: 'bearish', confidence: 0.74,
+  callSymbol: 'BEAR260904C00100000', putSymbol: 'BEAR260904P00100000',
+  contracts: [
+    { symbol: 'BEAR260904P00100000', type: 'put', strike: 100, bid: 4.8, ask: 5, mid: 4.9, spreadPct: 0.0408, quoteAgeSeconds: 2, volume: 500 },
+    { symbol: 'BEAR260904P00096000', type: 'put', strike: 96, bid: 1.8, ask: 1.95, mid: 1.875, spreadPct: 0.08, quoteAgeSeconds: 3, volume: 100 },
+    { symbol: 'BEAR260904P00095000', type: 'put', strike: 95, bid: 1.7, ask: 2, mid: 1.85, spreadPct: 0.1622, quoteAgeSeconds: 3, volume: 100 },
+  ],
+};
+
+const bullishCandidate: OptionScan = {
+  ...bearishCandidate,
+  symbol: 'BULL', strategy: 'bull_call_spread', direction: 'bullish',
+  callSymbol: 'BULL260904C00100000', putSymbol: 'BULL260904P00100000',
+  contracts: [
+    { symbol: 'BULL260904C00100000', type: 'call', strike: 100, bid: 4.8, ask: 5, mid: 4.9, spreadPct: 0.0408, quoteAgeSeconds: 2, volume: 500 },
+    { symbol: 'BULL260904C00104000', type: 'call', strike: 104, bid: 1.8, ask: 1.95, mid: 1.875, spreadPct: 0.08, quoteAgeSeconds: 3, volume: 100 },
+  ],
+};
+
 test('constructs exact long-straddle legs and maximum debit loss', () => {
   const result = constructPosition(qqqCandidate);
   assert.equal(result.status, 'constructed');
@@ -79,9 +101,41 @@ test('budgeted structure clears trade risk but remains blocked without council v
   assert.equal(decision.passed, 11);
 });
 
-test('blocks spread strategies until wing contracts are selected', () => {
-  const result = constructPosition({ ...qqqCandidate, strategy: 'bear_put_spread' });
+test('constructs a conservative bear put spread within the risk budget', () => {
+  const result = constructPosition(bearishCandidate);
+  assert.equal(result.status, 'constructed');
+  if (result.status !== 'constructed') return;
+  assert.equal(result.position.strategy, 'bear_put_spread');
+  assert.equal(result.position.netDebit, 3.2);
+  assert.equal(result.position.maxLoss, 320);
+  assert.equal(result.position.maxProfit, 80);
+  assert.deepEqual(result.position.legs.map((leg) => [leg.side, leg.type, leg.strike]), [
+    ['buy', 'put', 100], ['sell', 'put', 96],
+  ]);
+});
+
+test('constructs the mirrored bull call spread', () => {
+  const result = constructPosition(bullishCandidate);
+  assert.equal(result.status, 'constructed');
+  if (result.status !== 'constructed') return;
+  assert.equal(result.position.strategy, 'bull_call_spread');
+  assert.equal(result.position.maxLoss, 320);
+  assert.equal(result.position.maxProfit, 80);
+  assert.deepEqual(result.position.legs.map((leg) => [leg.side, leg.type, leg.strike]), [
+    ['buy', 'call', 100], ['sell', 'call', 104],
+  ]);
+});
+
+test('blocks directional spreads when no covered wing meets policy', () => {
+  const result = constructPosition({ ...bearishCandidate, contracts: bearishCandidate.contracts.slice(0, 1) });
   assert.equal(result.status, 'blocked');
   if (result.status !== 'blocked') return;
-  assert.match(result.reason, /outside the first optimizer release/);
+  assert.match(result.reason, /No liquid covered wing/);
+});
+
+test('keeps unsupported short-volatility construction blocked', () => {
+  const result = constructPosition({ ...qqqCandidate, strategy: 'iron_condor' });
+  assert.equal(result.status, 'blocked');
+  if (result.status !== 'blocked') return;
+  assert.match(result.reason, /not implemented/);
 });
