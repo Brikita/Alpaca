@@ -11,6 +11,7 @@ import { constructPosition, toTradeProposal } from '../lib/position-constructor.
 import { evaluateProposal } from '../lib/risk-governor.ts';
 import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
 import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
+import { alertKey, writeWorkflowOutputs } from '../lib/workflow-output.ts';
 
 const STARTING_EQUITY = 100_000;
 const MAX_EVIDENCE_AGE_SECONDS = 60;
@@ -67,6 +68,8 @@ async function publish(event: PaperOrderEvent): Promise<void> {
   );
 }
 
+let workflowResult = { result: 'unknown', alertKey: 'unknown', message: 'Execution did not report an outcome.' };
+
 try {
   const telemetryUrl = process.env.VOLGUARD_TELEMETRY_URL;
   const scanUrl = process.env.VOLGUARD_SCAN_URL;
@@ -110,7 +113,7 @@ try {
   if (construction.status === 'blocked') hold(construction.reason);
   const currentQuoteAge = Math.ceil(construction.position.quoteAgeSeconds + batchAge);
   const position = { ...construction.position, quoteAgeSeconds: currentQuoteAge };
-  const votes = runAgentCouncil(leader, position);
+  const votes = runAgentCouncil(leader, position, batch.catalyst);
   const proposal = { ...toTradeProposal(position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
   const decision = evaluateProposal(proposal, {
     openRisk: portfolio.openRisk,
@@ -127,12 +130,18 @@ try {
   process.stdout.write(`${JSON.stringify({ stage: 'previewed', event: preview }, null, 2)}\n`);
 
   if (process.env.VOLGUARD_EXECUTION_ENABLED !== 'paper') {
+    workflowResult = { result: 'previewed', alertKey: 'execution-locked', message: 'Paper submission remains locked.' };
     process.stdout.write('Paper submission remains locked. Set VOLGUARD_EXECUTION_ENABLED=paper for one deliberate run.\n');
   } else {
     try {
       const submitted = await runPaperOrder(position, batch.capturedAt, votes, decision, false, process.env);
       process.stdout.write(`${JSON.stringify({ stage: 'submitted', event: submitted }, null, 2)}\n`);
       await publish(submitted);
+      workflowResult = {
+        result: 'submitted',
+        alertKey: `${submitted.symbol.toLowerCase()}-${submitted.clientOrderId}`,
+        message: `${submitted.symbol} ${submitted.strategy} paper entry was accepted by Alpaca.`,
+      };
       const reconciled = await reconcilePaperOrder(submitted, process.env);
       if (reconciled) {
         await publish(reconciled);
@@ -155,9 +164,13 @@ try {
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof PaperExecutionHold) {
+    workflowResult = { result: 'held', alertKey: alertKey(message), message };
     process.stdout.write(`Paper execution held safely: ${message}\n`);
   } else {
+    workflowResult = { result: 'failed', alertKey: 'entry-failed', message };
     process.stderr.write(`Paper execution stopped: ${message}\n`);
     process.exitCode = 1;
   }
+} finally {
+  await writeWorkflowOutputs(workflowResult);
 }

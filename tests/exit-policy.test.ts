@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { SafePosition } from '../lib/alpaca-snapshot.ts';
 import { evaluateExit, timeExitAt, type OptionQuote } from '../lib/exit-policy.ts';
 import type { PaperOrderEvent } from '../lib/paper-order.ts';
+import type { MarketCalendarSession } from '../lib/market-calendar.ts';
 
 const entry: PaperOrderEvent = {
   schemaVersion: 1, source: 'volguard-runner', mode: 'paper',
@@ -38,6 +39,14 @@ function quotes(longBid: number, shortAsk: number, timestamp = '2026-09-01T16:37
 
 test('sets a 3pm ET exit on the prior weekday', () => {
   assert.equal(timeExitAt('2026-09-04'), '2026-09-03T19:00:00.000Z');
+});
+
+test('uses the verified prior session and its early close', () => {
+  const calendar: MarketCalendarSession[] = [
+    { date: '2026-11-25', open: '09:30', close: '16:00', sessionOpen: '0930', sessionClose: '1600' },
+    { date: '2026-11-27', open: '09:30', close: '13:00', sessionOpen: '0930', sessionClose: '1300' },
+  ];
+  assert.equal(timeExitAt('2026-11-30', calendar), '2026-11-27T17:00:00.000Z');
 });
 
 test('holds while profit, loss, and time thresholds remain untouched', () => {

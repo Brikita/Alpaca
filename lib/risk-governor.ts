@@ -20,6 +20,7 @@ export function evaluateProposal(
     (vote) => vote.agent !== 'red_team' && vote.approved,
   ).length;
   const redTeam = proposal.votes.find((vote) => vote.agent === 'red_team');
+  const catalyst = proposal.votes.find((vote) => vote.agent === 'catalyst');
 
   const gates: GateResult[] = [
     gate('paper', 'Paper account only', proposal.paperAccount, proposal.paperAccount ? 'Paper mode verified' : 'Live account blocked'),
@@ -34,7 +35,7 @@ export function evaluateProposal(
     gate('correlation', 'Correlation capacity', proposal.correlationSlotsAfter <= policy.maxCorrelatedPositions, `${proposal.correlationSlotsAfter} / ${policy.maxCorrelatedPositions} slots`),
     gate('spread', 'Bid-ask spread', proposal.spreadPct <= policy.maxSpreadPct, `${Math.round(proposal.spreadPct * 100)}% / ${Math.round(policy.maxSpreadPct * 100)}%`),
     gate('quote-age', 'Quote freshness', proposal.quoteAgeSeconds <= policy.maxQuoteAgeSeconds, `${proposal.quoteAgeSeconds}s / ${policy.maxQuoteAgeSeconds}s`),
-    gate('council', 'Agent council', approvals >= policy.minAgentApprovals && Boolean(redTeam?.approved) && proposal.confidence >= policy.minConfidence, `${approvals} approvals · ${Math.round(proposal.confidence * 100)}% confidence`),
+    gate('council', 'Agent council', approvals >= policy.minAgentApprovals && Boolean(catalyst?.approved) && Boolean(redTeam?.approved) && proposal.confidence >= policy.minConfidence, `${approvals} approvals · catalyst ${catalyst?.approved ? 'clear' : 'blocked'} · ${Math.round(proposal.confidence * 100)}% confidence`),
   ];
 
   const passed = gates.filter((item) => item.passed).length;

@@ -1,5 +1,7 @@
 import type { Direction, MarketSignal, Strategy } from './domain.ts';
 import { selectStrategy } from './strategy.ts';
+import type { CatalystSnapshot } from './catalyst.ts';
+import type { MarketCalendarSession } from './market-calendar.ts';
 
 export interface PriceBar {
   c: number;
@@ -91,6 +93,8 @@ export interface OptionScanBatch {
   scans: OptionScan[];
   leaderSymbol: string | null;
   candidateCount: number;
+  catalyst?: CatalystSnapshot;
+  calendar?: MarketCalendarSession[];
 }
 
 interface ParsedOptionSymbol {

@@ -1,6 +1,7 @@
 import { DEFAULT_RISK_POLICY, type AgentVote } from './domain.ts';
 import type { OptionScan } from './option-intelligence.ts';
 import type { ConstructedPosition } from './position-constructor.ts';
+import type { CatalystSnapshot } from './catalyst.ts';
 
 function checkPassed(scan: OptionScan, id: OptionScan['checks'][number]['id']): boolean {
   return scan.checks.find((check) => check.id === id)?.passed === true;
@@ -15,6 +16,7 @@ function directionMatches(scan: OptionScan, position: ConstructedPosition): bool
 export function runAgentCouncil(
   scan: OptionScan,
   position: ConstructedPosition,
+  catalyst?: CatalystSnapshot,
 ): AgentVote[] {
   const regimeApproved = scan.status === 'candidate'
     && checkPassed(scan, 'session')
@@ -55,9 +57,10 @@ export function runAgentCouncil(
     },
     {
       agent: 'catalyst',
-      approved: false,
-      confidence: 0,
-      rationale: 'No verified economic-event feed is connected; this specialist abstains rather than inventing event clearance.',
+      approved: catalyst?.status === 'clear',
+      confidence: catalyst?.status === 'clear' ? 0.75 : catalyst?.status === 'risk' ? 0.95 : 0,
+      rationale: catalyst?.rationale
+        ?? 'Verified Alpaca news is unavailable; the catalyst specialist fails closed.',
     },
     {
       agent: 'red_team',

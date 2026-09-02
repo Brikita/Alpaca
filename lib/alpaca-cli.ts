@@ -6,6 +6,7 @@ const SAFE_READ_COMMANDS = new Set([
   'account get',
   'account portfolio',
   'clock',
+  'calendar',
   'position list',
   'order list',
   'data snapshot',

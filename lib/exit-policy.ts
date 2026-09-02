@@ -1,10 +1,12 @@
 import type { SafePosition } from './alpaca-snapshot.ts';
 import type { PaperOrderEvent } from './paper-order.ts';
+import { priorTradingSession, type MarketCalendarSession } from './market-calendar.ts';
 
 export const DEFAULT_EXIT_POLICY = {
   profitCapturePct: 0.5,
   stopLossPctOfDebit: 0.5,
   timeExitHourEt: 15,
+  minutesBeforeClose: 60,
   maxQuoteAgeSeconds: 60,
 } as const;
 
@@ -63,7 +65,20 @@ function newYorkWallTimeToUtc(date: string, hour: number, minute = 0): string {
   return new Date(provisional - offset).toISOString();
 }
 
-export function timeExitAt(expiration: string): string {
+export function timeExitAt(
+  expiration: string,
+  calendar: MarketCalendarSession[] = [],
+): string {
+  const verifiedSession = priorTradingSession(expiration, calendar);
+  if (verifiedSession) {
+    const [closeHour, closeMinute] = verifiedSession.close.split(':').map(Number);
+    const totalMinutes = closeHour * 60 + closeMinute - DEFAULT_EXIT_POLICY.minutesBeforeClose;
+    return newYorkWallTimeToUtc(
+      verifiedSession.date,
+      Math.floor(totalMinutes / 60),
+      totalMinutes % 60,
+    );
+  }
   return newYorkWallTimeToUtc(
     previousWeekday(expiration),
     DEFAULT_EXIT_POLICY.timeExitHourEt,
@@ -87,6 +102,7 @@ export function evaluateExit(input: {
   entry: PaperOrderEvent;
   positions: SafePosition[];
   quotes: Record<string, OptionQuote>;
+  calendar?: MarketCalendarSession[];
   now?: string;
 }): ExitEvaluation {
   const now = input.now ?? new Date().toISOString();
@@ -123,7 +139,7 @@ export function evaluateExit(input: {
     : input.entry.maxProfit + (input.entry.limitDebit - entryDebit) * 100 * input.entry.quantity;
   const profitTarget = round(actualMaxProfit * DEFAULT_EXIT_POLICY.profitCapturePct);
   const lossLimit = round(entryDebit * 100 * input.entry.quantity * DEFAULT_EXIT_POLICY.stopLossPctOfDebit);
-  const exitAt = timeExitAt(input.entry.expiration);
+  const exitAt = timeExitAt(input.entry.expiration, input.calendar);
 
   let reason: ExitReason = 'hold';
   if (unrealizedPnl >= profitTarget && profitTarget > 0) reason = 'profit_target';

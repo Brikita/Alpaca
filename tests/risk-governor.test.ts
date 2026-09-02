@@ -10,7 +10,7 @@ const safeProposal: TradeProposal = {
   votes: [
     { agent: 'regime', approved: true, confidence: 0.82, rationale: 'Range-bound' },
     { agent: 'volatility', approved: true, confidence: 0.78, rationale: 'IV rich' },
-    { agent: 'catalyst', approved: false, confidence: 0.62, rationale: 'Macro event' },
+    { agent: 'catalyst', approved: true, confidence: 0.8, rationale: 'Verified news is clear' },
     { agent: 'red_team', approved: true, confidence: 0.71, rationale: 'Risk is defined' },
   ],
 };
@@ -40,4 +40,16 @@ test('blocks a third strategy even when its dollar risk would fit', () => {
   );
   assert.equal(result.approved, false);
   assert.equal(result.gates.find((item) => item.id === 'position-capacity')?.passed, false);
+});
+
+test('blocks the proposal when the verified catalyst agent vetoes it', () => {
+  const votes = safeProposal.votes.map((vote) => vote.agent === 'catalyst'
+    ? { ...vote, approved: false, rationale: 'Verified market-moving headline' }
+    : vote);
+  const result = evaluateProposal(
+    { ...safeProposal, votes },
+    { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 },
+  );
+  assert.equal(result.approved, false);
+  assert.equal(result.gates.find((item) => item.id === 'council')?.passed, false);
 });

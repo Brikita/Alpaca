@@ -67,3 +67,20 @@ test('rejects malformed or excessive wing quote payloads', () => {
   };
   assert.equal(isOptionScanBatch(excessive), false);
 });
+
+test('validates optional catalyst and exchange-calendar evidence', () => {
+  const batch = validBatch();
+  const evidence = {
+    ...batch,
+    catalyst: {
+      source: 'alpaca-news', capturedAt: batch.capturedAt, status: 'clear',
+      lookbackMinutes: 120, highImpactCount: 0, articles: [], rationale: 'Clear',
+    },
+    calendar: [{
+      date: '2026-09-04', open: '09:30', close: '16:00', sessionOpen: '0930', sessionClose: '1600',
+    }],
+  };
+  assert.equal(isOptionScanBatch(evidence), true);
+  assert.equal(isOptionScanBatch({ ...evidence, catalyst: { ...evidence.catalyst, status: 'invented' } }), false);
+  assert.equal(isOptionScanBatch({ ...evidence, calendar: [{ ...evidence.calendar[0], close: 'soon' }] }), false);
+});

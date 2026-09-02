@@ -13,6 +13,8 @@ import {
   publishTelemetrySnapshot,
 } from '../lib/telemetry-client.ts';
 import { openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
+import { collectMarketCalendar } from '../lib/market-calendar.ts';
+import { writeWorkflowOutputs } from '../lib/workflow-output.ts';
 
 interface LatestOptionQuotesResponse {
   quotes?: Record<string, {
@@ -103,6 +105,7 @@ try {
       capturedAt: snapshot.capturedAt,
       nextOpen: snapshot.market.nextOpen,
     })}\n`);
+    await writeWorkflowOutputs({ result: 'market_closed', alertKey: 'market-closed', message: 'Market closed; monitor skipped safely.' });
     process.exit(0);
   }
   if (snapshot.account.status !== 'ACTIVE'
@@ -118,6 +121,7 @@ try {
   }
   if (portfolio.entries.length === 0) {
     process.stdout.write('No open VolGuard strategies require monitoring.\n');
+    await writeWorkflowOutputs({ result: 'no_positions', alertKey: 'no-positions', message: 'No open VolGuard strategies require monitoring.' });
     process.exit(0);
   }
 
@@ -125,12 +129,22 @@ try {
   const quoteResponse = await runAlpaca<LatestOptionQuotesResponse>([
     'data', 'option', 'latest-quotes', '--symbols', symbols,
   ], { ...process.env, ALPACA_LIVE_TRADE: 'false' });
+  const expirations = portfolio.entries.map((entry) => entry.expiration).sort();
+  const latestExpiration = expirations.at(-1);
+  if (!latestExpiration) throw new Error('An open strategy is missing its expiration.');
+  const calendarStart = new Date(snapshot.capturedAt);
+  calendarStart.setUTCDate(calendarStart.getUTCDate() - 7);
+  const calendarEnd = new Date(`${latestExpiration}T23:59:59.000Z`);
+  const calendar = await collectMarketCalendar(calendarStart, calendarEnd, {
+    ...process.env, ALPACA_LIVE_TRADE: 'false',
+  });
   let submittedAnyExit = false;
   for (const entry of portfolio.entries) {
     const evaluation = evaluateExit({
       entry,
       positions: snapshot.positions,
       quotes: sanitizeQuotes(entry, quoteResponse.data),
+      calendar,
     });
     const monitored = createPaperExitEvent({
       eventType: 'monitored', entry, evaluation, brokerStatus: evaluation.shouldExit ? 'exit_ready' : 'hold',
@@ -178,8 +192,14 @@ try {
     const postExitSnapshot = await collectAlpacaSnapshot(process.env);
     await publishTelemetrySnapshot(postExitSnapshot, config.telemetryEndpoint, config.token, config.sitesBypassToken);
   }
+  await writeWorkflowOutputs({
+    result: submittedAnyExit ? 'exit_submitted' : 'held',
+    alertKey: submittedAnyExit ? 'exit-submitted' : 'exit-threshold-not-reached',
+    message: submittedAnyExit ? 'A governed paper exit was submitted.' : 'Open strategies remain inside deterministic exit thresholds.',
+  });
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
+  await writeWorkflowOutputs({ result: 'failed', alertKey: 'monitor-failed', message });
   process.stderr.write(`Position monitoring stopped: ${message}\n`);
   process.exitCode = 1;
 }

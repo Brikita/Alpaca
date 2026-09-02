@@ -1,4 +1,6 @@
 import { runAlpaca, type AlpacaEnvironment } from './alpaca-cli.ts';
+import { collectCatalystSnapshot } from './catalyst.ts';
+import { collectMarketCalendar, selectExpirationFromCalendar } from './market-calendar.ts';
 import {
   buildOptionScan,
   buildUnavailableScan,
@@ -95,8 +97,16 @@ export async function collectOptionScanBatch(
 ): Promise<OptionScanBatch> {
   const safeEnvironment = { ...environment, ALPACA_LIVE_TRADE: 'false' };
   const capturedAt = now.toISOString();
-  const expiration = targetFriday(now);
-  const clock = await runAlpaca<AlpacaClockResponse>(['clock'], safeEnvironment);
+  const preferredExpiration = targetFriday(now);
+  const calendarEnd = new Date(`${preferredExpiration}T23:59:59.000Z`);
+  const calendarStart = new Date(now);
+  calendarStart.setUTCDate(calendarStart.getUTCDate() - 2);
+  const [clock, calendar, catalyst] = await Promise.all([
+    runAlpaca<AlpacaClockResponse>(['clock'], safeEnvironment),
+    collectMarketCalendar(calendarStart, calendarEnd, safeEnvironment),
+    collectCatalystSnapshot(universe, safeEnvironment, now),
+  ]);
+  const expiration = selectExpirationFromCalendar(preferredExpiration, calendar);
   const marketOpen = Boolean(clock.data.is_open);
   const scans = await Promise.all(
     universe.map((symbol) => collectSymbol(symbol, capturedAt, expiration, marketOpen, safeEnvironment)),
@@ -112,5 +122,7 @@ export async function collectOptionScanBatch(
     scans,
     leaderSymbol: chooseScanLeader(scans),
     candidateCount: scans.filter((scan) => scan.status === 'candidate').length,
+    catalyst,
+    calendar,
   };
 }

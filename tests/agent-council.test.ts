@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runAgentCouncil } from '../lib/agent-council.ts';
+import type { CatalystSnapshot } from '../lib/catalyst.ts';
 import type { OptionScan } from '../lib/option-intelligence.ts';
 import type { ConstructedPosition } from '../lib/position-constructor.ts';
 import { toTradeProposal } from '../lib/position-constructor.ts';
@@ -37,6 +38,12 @@ const position: ConstructedPosition = {
   expiresToday: false, spreadPct: 0.0924, quoteAgeSeconds: 9, confidence: 0.75,
 };
 
+const clearCatalyst: CatalystSnapshot = {
+  source: 'alpaca-news', capturedAt: '2026-09-01T13:33:12.747Z',
+  status: 'clear', lookbackMinutes: 120, highImpactCount: 0, articles: [],
+  rationale: 'No configured high-impact catalyst appeared in verified Alpaca news.',
+};
+
 test('produces four named, auditable votes without inventing catalyst clearance', () => {
   const votes = runAgentCouncil(scan, position);
   assert.deepEqual(votes.map((vote) => vote.agent), ['regime', 'volatility', 'catalyst', 'red_team']);
@@ -46,11 +53,19 @@ test('produces four named, auditable votes without inventing catalyst clearance'
 });
 
 test('allows the governor to approve only when council evidence and all rules pass', () => {
-  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position)), {
+  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position, clearCatalyst)), {
     openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, true);
   assert.equal(decision.passed, 13);
+});
+
+test('fails closed when verified catalyst evidence is unavailable', () => {
+  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position)), {
+    openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
+  });
+  assert.equal(decision.approved, false);
+  assert.equal(decision.gates.find((gate) => gate.id === 'council')?.passed, false);
 });
 
 test('red team vetoes an oversized position', () => {
