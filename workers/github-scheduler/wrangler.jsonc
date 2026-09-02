@@ -1,0 +1,21 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "volguard-github-scheduler",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "triggers": {
+    "crons": ["2-59/5 13-22 * * mon-fri"]
+  },
+  "vars": {
+    "GITHUB_OWNER": "Brikita",
+    "GITHUB_REPO": "Alpaca",
+    "GITHUB_WORKFLOW": "monitor-paper-position.yml",
+    "GITHUB_REF": "master"
+  }
+}
