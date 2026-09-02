@@ -24,6 +24,8 @@ Raw logs are **not listed as a separate required upload** in the supplied event 
 - [ ] GitHub Actions run showing a successful automated monitor cycle
 - [ ] Cloudflare Worker trigger/success view showing the five-minute schedule
 - [ ] GitHub Actions evidence showing the ten-minute entry branch and a safe abstention or approved paper entry
+- [ ] Performance page showing reconciled-trade metrics, verified catalyst evidence, and the daily replay disclosure
+- [ ] Pause/resume workflow evidence showing the authenticated Durable Object control state
 - [ ] Test summary showing the current automated suite passing
 - [ ] Fresh-account evidence showing the $100,000 starting balance
 
@@ -34,7 +36,7 @@ Do not publish raw environment files, API keys, bearer tokens, GitHub secrets, f
 - [ ] Repository visibility is Public and the README renders correctly
 - [ ] `.env.local`, secrets, account IDs, and generated private evidence are absent from Git history
 - [ ] Demo opens in an incognito window without owner authentication
-- [ ] `/`, `/decisions`, `/positions`, `/risk`, and `/journal` all show the same current telemetry
+- [ ] `/`, `/decisions`, `/positions`, `/risk`, `/journal`, and `/performance` all show the same current telemetry
 - [ ] Navbar and timezone selector work on phone and desktop
 - [ ] Demo makes no live-trading claim and still displays the paper-trading disclaimer
 - [ ] Final deck and video use the same facts and numbers

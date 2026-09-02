@@ -16,6 +16,10 @@ VolGuard is an autonomous, risk-governed options agent for the Alpaca AI Trading
 - Governed hold, profit, loss, and pre-expiration exit decisions
 - Atomic closing-order previews with a separate paper-only exit lock
 - Entry, monitoring, exit, and realized-P&L lifecycle evidence
+- Verified Alpaca news catalyst gate and exchange holiday/early-close calendar
+- Strongly consistent Cloudflare Durable Object pause control with an authenticated GitHub Actions operator workflow
+- GitHub Issue alerts for failures, safety holds, and accepted paper trades
+- Reconciled-trade performance analytics and a daily one-year underlying-signal replay with buy-and-hold baselines
 - Automated strategy, risk, and safety tests
 
 ## Run the dashboard
@@ -61,9 +65,11 @@ Monitor up to two matched open paper strategies:
 npm run monitor:position
 ```
 
-The monitor uses fresh two-sided quotes, verifies that every recorded option leg across up to two strategies still matches the broker positions, and evaluates each lifecycle independently. It records a hold unless that strategy reaches its 50% profit-capture target, 50%-of-debit loss limit, or 3:00 PM ET prior-weekday time exit. Closing submission uses the separate one-process `VOLGUARD_EXIT_ENABLED=paper` lock and reverses only that strategy's legs in one multi-leg order.
+The monitor uses fresh two-sided quotes, verifies that every recorded option leg across up to two strategies still matches the broker positions, and evaluates each lifecycle independently. It records a hold unless that strategy reaches its 50% profit-capture target, 50%-of-debit loss limit, or one-hour-before-close exit on the verified prior Alpaca trading session. Closing submission uses the separate one-process `VOLGUARD_EXIT_ENABLED=paper` lock and reverses only that strategy's legs in one multi-leg order.
 
-A Cloudflare Worker dispatches one authenticated GitHub Actions paper cycle every five minutes on trading weekdays. Every run monitors exits and reconciles broker orders; every other run also refreshes the account, scans SPY/QQQ/IWM/GLD, and attempts one paper entry. The entry branch therefore runs every ten minutes and still requires an open Alpaca market, fresh evidence, available portfolio capacity, an atomic dry run, council approval, and all thirteen risk gates. A scheduled wake-up is never itself permission to trade.
+A Cloudflare Worker dispatches one authenticated GitHub Actions paper cycle every five minutes on trading weekdays. Every run monitors exits and reconciles broker orders; every other run also refreshes the account, scans SPY/QQQ/IWM/GLD, and attempts one paper entry. The entry branch therefore runs every ten minutes and still requires an open Alpaca market, fresh evidence, verified catalyst clearance, available portfolio capacity, an atomic dry run, council approval, and all thirteen risk gates. A Durable Object pause state is checked before every dispatch, and authenticated operators can pause or resume it through the dedicated control workflow with an audit reason. A scheduled wake-up is never itself permission to trade.
+
+The daily replay uses one year of Alpaca underlying bars to compare a deterministic five-session signal with a passive baseline. It is deliberately separate from reconciled paper option results and explicitly excludes option pricing, fills, fees, and slippage.
 
 ## Hackathon submission kit
 

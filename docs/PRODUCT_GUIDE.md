@@ -86,7 +86,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade approval, incident analysis, and judge-facing explanation.
 
-**Current limitation:** The first council is a transparent evidence-driven specialist layer, not a hosted language-model service. Its catalyst specialist abstains until a verified event feed is connected; two positive specialists and a non-vetoing red team are still required.
+**Current limitation:** The council is a transparent evidence-driven specialist layer, not a hosted language-model service. The catalyst specialist uses verified Alpaca news and fails closed when that feed is unavailable or a configured high-impact headline appears; this keyword policy is intentionally conservative and is not a full economic-calendar forecast.
 
 ### Atomic paper-order execution
 
@@ -106,7 +106,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Intraday monitoring, expiration-risk control, complete trade demonstrations, and realized-P&L attribution.
 
-**Current limitation:** Cloudflare dispatches the authenticated GitHub runner every five minutes during the broad US-session window. The broker clock remains authoritative, while the prior-weekday rule is weekend-aware but does not yet consume the Alpaca market calendar for exchange holidays.
+**Current limitation:** Cloudflare dispatches the authenticated GitHub runner every five minutes during the broad US-session window. The Alpaca clock remains the session authority, and the Alpaca market calendar supplies holiday and early-close evidence. Calendar or quote failure blocks rather than guesses.
 
 ### Alpaca CLI safety boundary
 
@@ -116,7 +116,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Account checks, market data, order previews, deliberate paper-order execution, and read-only reconciliation.
 
-**Current limitation:** The CLI runs on the local Windows runner, so continuous updates require that runner or a scheduled local task to be online.
+**Current limitation:** The CLI runs in the authenticated GitHub Actions job. Availability therefore depends on GitHub Actions, Cloudflare dispatch, Alpaca, and the configured secrets; infrastructure failures are surfaced as workflow failures and deduplicated GitHub Issues.
 
 ### Sanitized Alpaca snapshot
 
@@ -126,7 +126,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Morning readiness checks, dashboard metrics, reconciliation, and later risk-budget calculations.
 
-**Current limitation:** Collection is on demand until a scheduler is added. A stale snapshot is evidence about the last sync, not proof of current broker state.
+**Current limitation:** Collection occurs during the automated cycle, but a stale snapshot is evidence about the last successful sync, not proof of current broker state.
 
 ### Protected telemetry store
 
@@ -156,7 +156,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade review, demonstrations, post-trade analysis, and debugging.
 
-**Current limitation:** The trace shows signal checks, exact legs, council rationales, and all twelve portfolio-risk gates. Order lifecycle events live in the journal; exit-policy evidence is not implemented yet.
+**Current limitation:** The trace shows signal checks, exact legs, council rationales, and all thirteen portfolio-risk gates. Order and exit lifecycle evidence live in the Journal rather than the pre-trade dialog.
 
 ### Decision and trade history
 
@@ -172,7 +172,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Purpose:** Keep the complete trading workflow usable on phones, tablets, laptops, and large desktop screens instead of treating mobile as a reduced read-only view.
 
-**Strengths:** Phone navigation keeps all five sections available in a touch-friendly bottom bar; metrics stay compact; decision cards stack without horizontal scrolling; long option symbols wrap safely; the decision trace becomes a full-width mobile sheet; and safe-area padding protects controls on notched devices.
+**Strengths:** Phone navigation keeps all six sections available in a touch-friendly bottom bar; metrics stay compact; decision cards stack without horizontal scrolling; long option symbols wrap safely; the decision trace becomes a full-width mobile sheet; and safe-area padding protects controls on notched devices.
 
 **Uses:** Check account readiness away from the desk, review a candidate or abstention on a phone, inspect risk gates on a tablet, and use the denser two-column desk layout for deeper review.
 
@@ -182,11 +182,21 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Purpose:** Separate analysis from authorization to act.
 
-**Strengths:** The system can continue to collect information while execution remains blocked.
+**Strengths:** A strongly consistent Durable Object state is checked before every scheduled dispatch. Only the token-authenticated GitHub control workflow can change it, and every change requires an audit reason.
 
 **Uses:** Development, abnormal-market conditions, debugging, and end-of-session shutdown.
 
-**Current limitation:** The interface state is not yet connected to a persistent runner process.
+**Current limitation:** The dashboard exposes pause status read-only. Operators intentionally change it in GitHub Actions so a public browser session never receives the control token.
+
+### Performance evidence and replay
+
+**Purpose:** Separate actual reconciled paper outcomes from historical research evidence.
+
+**Strengths:** Actual statistics count filled closing reconciliations only and report realized P&L, win rate, expectancy, profit factor, and path drawdown. A daily one-year replay compares a deterministic underlying signal with buy-and-hold for SPY, QQQ, IWM, and GLD.
+
+**Uses:** Weekly process review, sample-size tracking, strategy calibration, and honest hackathon evidence.
+
+**Current limitation:** The replay is not an options backtest. It excludes option prices, fills, fees, and slippage, so it must never be presented as expected live performance.
 
 ## Product success measures
 

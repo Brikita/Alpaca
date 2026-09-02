@@ -2,7 +2,13 @@
 
 ## Current production shape
 
-VolGuard currently builds with Vinext and runs on OpenAI Sites. Its API imports `cloudflare:workers` and stores telemetry in a Cloudflare D1 binding. The browser never receives Alpaca credentials; a local runner reads the paper account and publishes sanitized snapshots and option-scan batches through token-protected endpoints.
+VolGuard currently builds with Vinext and runs publicly on OpenAI Sites. Its API imports `cloudflare:workers` and stores telemetry in a Cloudflare D1 binding. The browser never receives Alpaca credentials; an authenticated GitHub Actions runner reads the paper account and publishes sanitized snapshots, option scans, order events, and strategy replays through token-protected endpoints. A Cloudflare Worker schedules the job and a Durable Object stores the emergency pause state.
+
+## Automation control and alerts
+
+Use **Actions → Control VolGuard paper automation → Run workflow** to select `pause` or `resume` and enter an audit reason. The workflow holds the control token; the public dashboard only reads `/status`. Failures, accepted paper entries/exits, and distinct safety holds create deduplicated GitHub Issues with a link to the exact run.
+
+Required server-side configuration includes `VOLGUARD_CONTROL_URL` and `VOLGUARD_CONTROL_TOKEN` in the GitHub `paper-trading` environment, `CONTROL_TOKEN` as a Worker secret, and the non-secret `VOLGUARD_CONTROL_URL` binding in the Sites runtime. Never expose either token to browser code.
 
 ## Recommended hackathon path
 

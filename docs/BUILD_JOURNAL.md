@@ -302,3 +302,25 @@ An autonomous agent must look for new opportunities without a manual rerun, but 
 - Position exits and broker reconciliation: every five minutes during the weekday scheduler window.
 - New-entry account refresh and option scan: every ten minutes during the same window.
 - Outside an open Alpaca session: the scan or execution path records a safe abstention and submits no entry.
+
+## 2026-09-02 — Submission hardening and evidence layer
+
+### What changed
+
+- Made the judge demo public and added a read-only automation status surface.
+- Added a strongly consistent Durable Object pause state and token-authenticated GitHub pause/resume workflow.
+- Added deduplicated GitHub Issue alerts for infrastructure failures, accepted paper trades, and distinct safety holds.
+- Connected verified Alpaca news to the Catalyst vote; unavailable or high-impact evidence now fails closed.
+- Connected the Alpaca exchange calendar to holiday expiration selection and early-close time exits.
+- Added actual filled-exit performance statistics and a separate daily one-year underlying signal replay with passive baselines and an explicit options-model limitation.
+- Updated GitHub Actions to immutable current action revisions and expanded the responsive dashboard with a sixth Performance page.
+
+### Reasoning and impact
+
+These changes close the gap between a working trading loop and a credible product. The operator can stop future dispatches without exposing a token in the browser, failures become visible without watching logs, exchange schedules and current headlines become auditable inputs, and performance claims are separated into actual paper outcomes versus limited historical research.
+
+### Verification
+
+- Sixty-five automated tests pass, including catalyst veto, holiday expiration, early close, analytics, replay, scheduler, and payload-boundary cases.
+- TypeScript, lint, the Vinext production build, and the Cloudflare Worker deployment dry-run pass.
+- Live routing remains prohibited; all execution paths continue to force Alpaca paper mode.
