@@ -30,6 +30,19 @@ button, a { font: inherit; }
 .market-state { display:flex; align-items:center; gap:14px; padding-bottom:4px; }
 .market-state span { display:flex; align-items:center; gap:7px; color:#4e574c; font:700 9px var(--font-geist-mono); letter-spacing:.08em; }
 .market-state strong { color:#686e65; font:550 11px var(--font-geist-mono); }
+.time-zone-control { display:flex; align-items:center; gap:7px; padding:6px 8px; border:1px solid var(--line); background:#f5f5ef; border-radius:4px; }
+.time-zone-control select { color:#31372f; background:transparent; border:0; outline:0; font:700 9px var(--font-geist-mono); cursor:pointer; }
+.sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+.view-overview .dashboard-grid,.view-overview .journal-section,
+.view-decisions .metrics,.view-decisions .risk-card,.view-decisions .journal-section,
+.view-risk .metrics,.view-risk .decision-card,.view-risk .journal-section,
+.view-journal .metrics,.view-journal .dashboard-grid,.view-journal .trade-history-card,
+.view-positions .metrics,.view-positions .dashboard-grid,.view-positions .history-card { display:none; }
+.view-decisions .dashboard-grid,.view-risk .dashboard-grid { grid-template-columns:1fr; }
+.view-journal .journal-grid,.view-positions .journal-grid { grid-template-columns:1fr; }
+.view-decisions .decision-card,.view-risk .risk-card,.view-journal .history-card,.view-positions .trade-history-card { min-height:calc(100vh - 190px); }
+.view-risk .risk-card { max-width:620px; }
+.view-overview .metrics { margin-bottom:auto; }
 .agent-toggle { padding:8px 10px; color:#e9eee5; background:#262c24; border:1px solid #363e33; border-radius:4px; cursor:pointer; font-size:9px; font-weight:650; }
 .agent-toggle:hover { background:#333b30; }
 .metrics { display:grid; grid-template-columns:1.25fr 1fr 1fr .9fr; border:1px solid var(--line); background:var(--panel); }

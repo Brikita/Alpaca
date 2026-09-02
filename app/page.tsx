@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
 import { runAgentCouncil } from '../lib/agent-council';
 import type { DecisionHistoryItem } from '../lib/decision-history';
@@ -26,17 +28,25 @@ function signedPercent(value: number): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 }
 
-function timeLabel(value: string | null | undefined): string {
+const TIME_ZONES = {
+  EAT: 'Africa/Nairobi',
+  ET: 'America/New_York',
+  UTC: 'UTC',
+} as const;
+
+type TimeZoneLabel = keyof typeof TIME_ZONES;
+
+function timeLabel(value: string | null | undefined, timeZone: string): string {
   if (!value) return '—';
   return new Intl.DateTimeFormat('en-US', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/New_York', hour12: false,
+    hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone, hour12: false,
   }).format(new Date(value));
 }
 
-function historyTimeLabel(value: string): string {
+function historyTimeLabel(value: string, timeZone: string): string {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/New_York', hour12: false,
+    timeZone, hour12: false,
   }).format(new Date(value));
 }
 
@@ -88,6 +98,8 @@ function eventStatusLabel(event: PaperOrderEvent): string {
 }
 
 export default function Home() {
+  const pathname = usePathname();
+  const view = pathname.split('/')[1] || 'overview';
   const [traceOpen, setTraceOpen] = useState(false);
   const [agentRunning, setAgentRunning] = useState(true);
   const [snapshot, setSnapshot] = useState<AlpacaSnapshot | null>(null);
@@ -96,6 +108,19 @@ export default function Home() {
   const [tradeHistory, setTradeHistory] = useState<PaperOrderEvent[]>([]);
   const [telemetryError, setTelemetryError] = useState(false);
   const [historyError, setHistoryError] = useState(false);
+  const [timeZoneLabel, setTimeZoneLabel] = useState<TimeZoneLabel>('EAT');
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('volguard-time-zone');
+    if (saved && saved in TIME_ZONES) {
+      window.queueMicrotask(() => setTimeZoneLabel(saved as TimeZoneLabel));
+    }
+  }, []);
+
+  function selectTimeZone(next: TimeZoneLabel) {
+    setTimeZoneLabel(next);
+    window.localStorage.setItem('volguard-time-zone', next);
+  }
 
   useEffect(() => {
     let active = true;
@@ -180,20 +205,20 @@ export default function Home() {
     && event.filledQuantity > 0) ?? null;
 
   return (
-    <main className="app-shell">
-      <a className="skip-link" href="#overview">Skip to dashboard</a>
+    <main className={`app-shell view-${view}`}>
+      <a className="skip-link" href="#main-content">Skip to dashboard</a>
       <aside className="sidebar">
-        <a className="brand" href="#" aria-label="VolGuard home">
+        <Link className="brand" href="/" aria-label="VolGuard home">
           <span className="brand-mark">V</span>
           <span>VOLGUARD</span>
-        </a>
+        </Link>
 
         <nav className="nav-list" aria-label="Main navigation">
-          <a className="nav-item active" href="#overview"><span>◫</span>Overview</a>
-          <a className="nav-item" href="#decisions"><span>⌁</span>Decisions</a>
-          <a className="nav-item" href="#positions"><span>◇</span>Positions</a>
-          <a className="nav-item" href="#risk"><span>⊘</span>Risk desk</a>
-          <a className="nav-item" href="#journal"><span>≡</span>Journal</a>
+          <Link className={`nav-item ${view === 'overview' ? 'active' : ''}`} href="/"><span>◫</span>Overview</Link>
+          <Link className={`nav-item ${view === 'decisions' ? 'active' : ''}`} href="/decisions"><span>⌁</span>Decisions</Link>
+          <Link className={`nav-item ${view === 'positions' ? 'active' : ''}`} href="/positions"><span>◇</span>Positions</Link>
+          <Link className={`nav-item ${view === 'risk' ? 'active' : ''}`} href="/risk"><span>⊘</span>Risk desk</Link>
+          <Link className={`nav-item ${view === 'journal' ? 'active' : ''}`} href="/journal"><span>≡</span>Journal</Link>
         </nav>
 
         <div className="sidebar-foot">
@@ -203,15 +228,23 @@ export default function Home() {
         </div>
       </aside>
 
-      <section className="workspace" id="overview">
+      <section className="workspace" id="main-content">
         <header className="topbar">
           <div>
             <p className="eyebrow">AUTONOMOUS OPTIONS DESK</p>
-            <h1>Good evening, operator.</h1>
+            <h1>{view === 'overview' ? 'Trading command center' : view === 'risk' ? 'Risk desk' : `${view.charAt(0).toUpperCase()}${view.slice(1)}`}</h1>
           </div>
           <div className="market-state">
             <span className={snapshot?.market.isOpen ? '' : 'market-closed'}><i />{snapshot ? (snapshot.market.isOpen ? 'MARKET OPEN' : 'MARKET CLOSED') : 'WAITING FOR SYNC'}</span>
-            <strong>{timeLabel(snapshot?.market.timestamp)} ET</strong>
+            <label className="time-zone-control">
+              <span className="sr-only">Display timezone</span>
+              <strong>{timeLabel(snapshot?.market.timestamp, TIME_ZONES[timeZoneLabel])}</strong>
+              <select value={timeZoneLabel} onChange={(event) => selectTimeZone(event.target.value as TimeZoneLabel)} aria-label="Display timezone">
+                <option value="EAT">EAT</option>
+                <option value="ET">ET</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </label>
             <button
               className="agent-toggle"
               type="button"
@@ -330,12 +363,12 @@ export default function Home() {
             <article className="history-card">
               <div className="history-head">
                 <strong>Signal decisions</strong>
-                <small>Newest first · Eastern Time</small>
+                <small>Newest first · {timeZoneLabel}</small>
               </div>
               <div className="history-list">
                 {decisionHistory.map((item) => (
                   <div className="history-row" key={item.id}>
-                    <time dateTime={item.capturedAt}>{historyTimeLabel(item.capturedAt)}</time>
+                    <time dateTime={item.capturedAt}>{historyTimeLabel(item.capturedAt, TIME_ZONES[timeZoneLabel])}</time>
                     <b className="history-symbol">{item.symbol}</b>
                     <span className={`history-outcome ${item.status}`}>
                       {item.status === 'candidate' ? 'CANDIDATE' : item.status.toUpperCase()}
@@ -384,7 +417,7 @@ export default function Home() {
                   <div><dt>Marked spread P&amp;L</dt><dd className={latestExitEvent.exit.unrealizedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(latestExitEvent.exit.unrealizedPnl)}</dd></div>
                   <div><dt>Profit target</dt><dd>{money(latestExitEvent.exit.profitTarget)}</dd></div>
                   <div><dt>Loss limit</dt><dd>−{money(latestExitEvent.exit.lossLimit)}</dd></div>
-                  <div><dt>Time exit</dt><dd>{historyTimeLabel(latestExitEvent.exit.timeExitAt)} ET</dd></div>
+                  <div><dt>Time exit</dt><dd>{historyTimeLabel(latestExitEvent.exit.timeExitAt, TIME_ZONES[timeZoneLabel])} {timeZoneLabel}</dd></div>
                   <div><dt>Current decision</dt><dd>{exitReasonLabel(latestExitEvent.exit.reason)}</dd></div>
                   {latestExitEvent.exit.realizedPnl !== null && (
                     <div><dt>Realized P&amp;L</dt><dd className={latestExitEvent.exit.realizedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(latestExitEvent.exit.realizedPnl)}</dd></div>
@@ -397,7 +430,7 @@ export default function Home() {
                     <div key={event.eventKey}>
                       <span className={`trade-event-status ${event.eventType}`}>{eventStatusLabel(event)}</span>
                       <strong>{event.symbol} · {strategyLabel(event.strategy)}</strong>
-                      <small>{historyTimeLabel(event.recordedAt)} ET · {event.exit
+                      <small>{historyTimeLabel(event.recordedAt, TIME_ZONES[timeZoneLabel])} {timeZoneLabel} · {event.exit
                         ? `${signedMoney(event.exit.unrealizedPnl)} marked · ${money(event.exit.closeCredit)} close credit · ${exitReasonLabel(event.exit.reason)}`
                         : `${money(event.maxLoss, 0)} max loss · ${event.filledAveragePrice === null ? `${money(event.limitDebit)} limit` : `${money(event.filledAveragePrice)} fill`}`}</small>
                     </div>
