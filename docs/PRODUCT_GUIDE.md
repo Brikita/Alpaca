@@ -106,7 +106,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Intraday monitoring, expiration-risk control, complete trade demonstrations, and realized-P&L attribution.
 
-**Current limitation:** Cloudflare dispatches the authenticated GitHub runner every five minutes during the broad US-session window. The Alpaca clock remains the session authority, and the Alpaca market calendar supplies holiday and early-close evidence. Calendar or quote failure blocks rather than guesses.
+**Current limitation:** Cloudflare dispatches the authenticated GitHub runner every five minutes only from 9:25 AM until 4:00 PM New York time on weekdays. The broad UTC cron still performs a lightweight DST-aware Worker check; the Alpaca clock remains the final session authority, and the Alpaca market calendar supplies holiday and early-close evidence. Calendar or quote failure blocks rather than guesses.
 
 ### Alpaca CLI safety boundary
 

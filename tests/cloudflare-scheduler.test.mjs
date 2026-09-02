@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   corsHeaders,
   dispatchWorkflow,
+  isRegularMarketDispatchWindow,
+  newYorkClockParts,
   shouldRunReplay,
   shouldRunEntry,
 } from "../workers/github-scheduler/src/core.mjs";
@@ -43,10 +45,26 @@ test("selects every other five-minute trigger for the entry cycle", () => {
   assert.equal(shouldRunEntry(Date.parse("2026-09-02T13:17:00Z")), false);
 });
 
+test("dispatches only inside the weekday New York regular-session window", () => {
+  assert.equal(isRegularMarketDispatchWindow(Date.parse("2026-09-02T13:27:00Z")), true);
+  assert.equal(isRegularMarketDispatchWindow(Date.parse("2026-09-02T19:57:00Z")), true);
+  assert.equal(isRegularMarketDispatchWindow(Date.parse("2026-09-02T13:22:00Z")), false);
+  assert.equal(isRegularMarketDispatchWindow(Date.parse("2026-09-02T20:02:00Z")), false);
+  assert.equal(isRegularMarketDispatchWindow(Date.parse("2026-09-05T15:02:00Z")), false);
+});
+
+test("uses America/New_York so winter dispatches shift with daylight saving time", () => {
+  assert.deepEqual(newYorkClockParts(Date.parse("2026-01-05T14:32:00Z")), {
+    weekday: "Mon", hour: "09", minute: "32",
+  });
+  assert.equal(isRegularMarketDispatchWindow(Date.parse("2026-01-05T14:32:00Z")), true);
+  assert.equal(isRegularMarketDispatchWindow(Date.parse("2026-01-05T21:02:00Z")), false);
+});
+
 test("selects only the first weekday cycle for the daily replay", () => {
-  assert.equal(shouldRunReplay(Date.parse("2026-09-02T13:02:00Z")), true);
-  assert.equal(shouldRunReplay(Date.parse("2026-09-02T13:12:00Z")), false);
-  assert.equal(shouldRunReplay(Date.parse("2026-09-02T14:02:00Z")), false);
+  assert.equal(shouldRunReplay(Date.parse("2026-09-02T13:27:00Z")), true);
+  assert.equal(shouldRunReplay(Date.parse("2026-09-02T13:32:00Z")), false);
+  assert.equal(shouldRunReplay(Date.parse("2026-01-05T14:27:00Z")), true);
 });
 
 test("allows CORS only for the configured dashboard origin", () => {

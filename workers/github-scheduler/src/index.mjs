@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import {
   corsHeaders,
   dispatchWorkflow,
+  isRegularMarketDispatchWindow,
   secureEqual,
   shouldRunEntry,
   shouldRunReplay,
@@ -44,6 +45,15 @@ function json(payload, init = {}) {
 
 const worker = {
   async scheduled(controller, env) {
+    if (!isRegularMarketDispatchWindow(controller.scheduledTime)) {
+      console.log(JSON.stringify({
+        event: "github_workflow_dispatch_skipped",
+        reason: "outside_regular_market_window",
+        scheduledAt: new Date(controller.scheduledTime).toISOString(),
+        dispatchWindow: "09:25-16:00 America/New_York weekdays",
+      }));
+      return;
+    }
     const automation = await control(env).getStatus();
     if (automation.paused) {
       console.log(JSON.stringify({
@@ -84,6 +94,8 @@ const worker = {
         mode: "paper",
         exitCadenceMinutes: 5,
         entryCadenceMinutes: 10,
+        dispatchWindow: "09:25-16:00 America/New_York weekdays",
+        dispatchEligibleNow: isRegularMarketDispatchWindow(Date.now()),
       }, { headers: cors });
     }
     if (url.pathname !== "/control" || request.method !== "POST") {

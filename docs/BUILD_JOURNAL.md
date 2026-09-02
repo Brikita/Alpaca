@@ -324,3 +324,15 @@ These changes close the gap between a working trading loop and a credible produc
 - Sixty-five automated tests pass, including catalyst veto, holiday expiration, early close, analytics, replay, scheduler, and payload-boundary cases.
 - TypeScript, lint, the Vinext production build, and the Cloudflare Worker deployment dry-run pass.
 - Live routing remains prohibited; all execution paths continue to force Alpaca paper mode.
+
+## 2026-09-02 — Session-aware dispatch window
+
+### What changed
+
+- Added a DST-aware `America/New_York` gate before Cloudflare can dispatch GitHub Actions.
+- Limited workflow dispatches to weekdays from 9:25 AM until, but not including, 4:00 PM ET.
+- Kept Alpaca's clock and exchange calendar as the final authority for holidays, early closes, and unexpected session changes.
+
+### Why
+
+The earlier broad UTC safety band correctly prevented orders after the close, but it still consumed a GitHub Actions run every five minutes. The Worker now performs the cheap time-zone check first and skips the expensive workflow outside the regular session.

@@ -47,6 +47,7 @@ button, a { font: inherit; }
 .view-overview .metrics { margin-bottom:auto; }
 .agent-toggle { display:inline-flex; align-items:center; padding:8px 10px; color:#e9eee5; background:#262c24; border:1px solid #363e33; border-radius:4px; cursor:default; font-size:9px; font-weight:650; }
 .agent-toggle.paused { color:#fff0ec; background:#833d32; border-color:#a55243; }
+.agent-toggle.off-hours { color:#d4d9d0; background:#343a32; border-color:#4b5348; }
 .metrics { display:grid; grid-template-columns:1.25fr 1fr 1fr .9fr; border:1px solid var(--line); background:var(--panel); }
 .metric { position:relative; min-height:126px; padding:22px 23px 18px; border-left:1px solid var(--line); overflow:hidden; }
 .metric:first-child { border-left:0; }
@@ -66,6 +67,7 @@ button, a { font: inherit; }
 .risk-track i { display:block; width:44%; height:100%; background:#737e40; }
 .metric h2.state { display:flex; gap:9px; align-items:center; color:#333a31; font:550 21px var(--font-geist-sans); letter-spacing:-.03em; }
 .metric h2.state i.paused { background:#b4b7af; box-shadow:none; }
+.metric h2.state i.off-hours { background:#8b9188; box-shadow:none; }
 .dashboard-grid { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1.8fr) minmax(270px,.7fr); gap:18px; padding:18px 0 16px; }
 .decision-card,.risk-card { background:var(--panel); border:1px solid var(--line); }
 .decision-card { padding:27px 28px 0; display:flex; flex-direction:column; }

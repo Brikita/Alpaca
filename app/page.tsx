@@ -24,6 +24,8 @@ interface AutomationStatus {
   updatedAt: string | null;
   exitCadenceMinutes: number;
   entryCadenceMinutes: number;
+  dispatchWindow: string;
+  dispatchEligibleNow: boolean;
 }
 
 function money(value: number, digits = 2): string {
@@ -275,8 +277,8 @@ export default function Home() {
                 <option value="UTC">UTC</option>
               </select>
             </label>
-            <span className={`agent-toggle ${automation?.paused ? 'paused' : ''}`} aria-label="Cloudflare automation state">
-              {automation?.paused ? 'Paused' : 'Scheduled'}
+            <span className={`agent-toggle ${automation?.paused ? 'paused' : automation && !automation.dispatchEligibleNow ? 'off-hours' : ''}`} aria-label="Cloudflare automation state">
+              {automation?.paused ? 'Paused' : automation && !automation.dispatchEligibleNow ? 'Off hours' : 'Scheduled'}
             </span>
           </div>
         </header>
@@ -302,8 +304,8 @@ export default function Home() {
           </article>
           <article className="metric">
             <p>Agent state</p>
-            <h2 className="state"><i className={automation?.paused ? 'paused' : ''} />{automation?.paused ? 'Paused' : 'Automated'}</h2>
-            <div className="metric-foot"><small>{automation?.reason ?? 'Exit / entry cadence'}</small><b className="muted">{automation ? `${automation.exitCadenceMinutes}m / ${automation.entryCadenceMinutes}m` : '5m / 10m'}</b></div>
+            <h2 className="state"><i className={automation?.paused ? 'paused' : automation && !automation.dispatchEligibleNow ? 'off-hours' : ''} />{automation?.paused ? 'Paused' : automation && !automation.dispatchEligibleNow ? 'Off hours' : 'Automated'}</h2>
+            <div className="metric-foot"><small>{automation && !automation.dispatchEligibleNow ? automation.dispatchWindow : automation?.reason ?? 'Exit / entry cadence'}</small><b className="muted">{automation ? `${automation.exitCadenceMinutes}m / ${automation.entryCadenceMinutes}m` : '5m / 10m'}</b></div>
           </article>
         </div>
 

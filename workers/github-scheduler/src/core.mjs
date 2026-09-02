@@ -1,12 +1,37 @@
 const GITHUB_API_VERSION = "2022-11-28";
+const NEW_YORK_CLOCK = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export function newYorkClockParts(scheduledTime) {
+  return Object.fromEntries(
+    NEW_YORK_CLOCK.formatToParts(new Date(scheduledTime))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+}
+
+export function isRegularMarketDispatchWindow(scheduledTime) {
+  const parts = newYorkClockParts(scheduledTime);
+  if (!["Mon", "Tue", "Wed", "Thu", "Fri"].includes(parts.weekday)) return false;
+  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+  return minutes >= 9 * 60 + 25 && minutes < 16 * 60;
+}
 
 export function shouldRunEntry(scheduledTime) {
   return new Date(scheduledTime).getUTCMinutes() % 10 === 2;
 }
 
 export function shouldRunReplay(scheduledTime) {
-  const date = new Date(scheduledTime);
-  return date.getUTCHours() === 13 && date.getUTCMinutes() === 2;
+  const parts = newYorkClockParts(scheduledTime);
+  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(parts.weekday)
+    && minutes >= 9 * 60 + 25
+    && minutes < 9 * 60 + 30;
 }
 
 export async function secureEqual(left, right) {
