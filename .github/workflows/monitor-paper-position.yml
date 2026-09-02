@@ -8,9 +8,15 @@ on:
         required: false
         default: false
         type: boolean
+      run_replay:
+        description: Refresh the one-year underlying signal replay
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: volguard-paper-trading-broker
@@ -34,10 +40,10 @@ jobs:
 
     steps:
       - name: Check out the audited strategy
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Use Node.js 22.13.0
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22.13.0
           cache: npm
@@ -67,6 +73,7 @@ jobs:
           alpaca doctor
 
       - name: Evaluate the governed paper exit
+        id: monitor
         run: npm run monitor:position
 
       - name: Reconcile existing paper orders
@@ -82,6 +89,7 @@ jobs:
         run: npm run scan:options
 
       - name: Submit only a fully approved paper entry
+        id: entry
         if: ${{ inputs.run_entry }}
         env:
           VOLGUARD_EXECUTION_ENABLED: 'paper'
@@ -90,3 +98,47 @@ jobs:
       - name: Reconcile the new paper entry
         if: ${{ always() && inputs.run_entry }}
         run: npm run reconcile:orders
+
+      - name: Refresh the historical signal replay
+        if: ${{ inputs.run_replay }}
+        run: npm run replay:strategy
+
+      - name: Publish actionable GitHub alerts
+        if: ${{ always() }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          MONITOR_RESULT: ${{ steps.monitor.outputs.result }}
+          MONITOR_KEY: ${{ steps.monitor.outputs.alertKey }}
+          MONITOR_MESSAGE: ${{ steps.monitor.outputs.message }}
+          ENTRY_RESULT: ${{ steps.entry.outputs.result }}
+          ENTRY_KEY: ${{ steps.entry.outputs.alertKey }}
+          ENTRY_MESSAGE: ${{ steps.entry.outputs.message }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const alerts = [];
+            if (process.env.MONITOR_RESULT === 'failed') alerts.push({ severity: 'failure', key: process.env.MONITOR_KEY, message: process.env.MONITOR_MESSAGE });
+            if (process.env.MONITOR_RESULT === 'exit_submitted') alerts.push({ severity: 'trade', key: process.env.MONITOR_KEY, message: process.env.MONITOR_MESSAGE });
+            if (process.env.ENTRY_RESULT === 'failed' || process.env.ENTRY_RESULT === 'submitted' || process.env.ENTRY_RESULT === 'held') {
+              alerts.push({ severity: process.env.ENTRY_RESULT === 'submitted' ? 'trade' : process.env.ENTRY_RESULT === 'held' ? 'hold' : 'failure', key: process.env.ENTRY_KEY, message: process.env.ENTRY_MESSAGE });
+            }
+            const existing = await github.rest.issues.listForRepo({ owner, repo, state: 'open', per_page: 100 });
+            for (const alert of alerts) {
+              const title = `[VolGuard ${alert.severity}] ${alert.key}`.slice(0, 120);
+              if (existing.data.some((issue) => issue.title === title)) continue;
+              await github.rest.issues.create({
+                owner, repo, title,
+                body: `${alert.message}\n\n[Inspect automated run](${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId})\n\nPaper trading only.`,
+              });
+            }
+
+      - name: Write the governed cycle summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          echo '## VolGuard governed paper cycle' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Exit monitor: ${{ steps.monitor.outputs.result || steps.monitor.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Entry branch: ${{ steps.entry.outputs.result || (inputs.run_entry && steps.entry.outcome) || 'not scheduled' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Historical replay: ${{ inputs.run_replay && 'scheduled' || 'not scheduled' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '- Safety boundary: paper account only' >> "$GITHUB_STEP_SUMMARY"

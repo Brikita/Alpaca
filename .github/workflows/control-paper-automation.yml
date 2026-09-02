@@ -1,0 +1,42 @@
+name: Control VolGuard paper automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Emergency control action
+        required: true
+        type: choice
+        options:
+          - pause
+          - resume
+      reason:
+        description: Audit reason for the state change
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  control:
+    name: Authenticated automation control
+    runs-on: ubuntu-24.04
+    environment: paper-trading
+    steps:
+      - name: Apply the strongly consistent control state
+        env:
+          CONTROL_URL: ${{ secrets.VOLGUARD_CONTROL_URL }}
+          CONTROL_TOKEN: ${{ secrets.VOLGUARD_CONTROL_TOKEN }}
+          ACTION: ${{ inputs.action }}
+          REASON: ${{ inputs.reason }}
+        shell: bash
+        run: |
+          test -n "$CONTROL_URL"
+          test -n "$CONTROL_TOKEN"
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $CONTROL_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data "$(jq --null-input --arg action "$ACTION" --arg reason "$REASON" '{action:$action,reason:$reason}')" \
+            "$CONTROL_URL/control"

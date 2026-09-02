@@ -1,54 +1,118 @@
-const GITHUB_API_VERSION = "2022-11-28";
+import { DurableObject } from "cloudflare:workers";
+import {
+  corsHeaders,
+  dispatchWorkflow,
+  secureEqual,
+  shouldRunEntry,
+  shouldRunReplay,
+} from "./core.mjs";
 
-export function shouldRunEntry(scheduledTime) {
-  return new Date(scheduledTime).getUTCMinutes() % 10 === 2;
+const CONTROL_NAME = "paper-trading";
+
+export class AutomationControl extends DurableObject {
+  async getStatus() {
+    return (await this.ctx.storage.get("status")) ?? {
+      paused: false,
+      reason: "Automation is scheduled.",
+      updatedAt: null,
+      updatedBy: "system-default",
+    };
+  }
+
+  async setPaused(paused, reason, updatedBy) {
+    const status = {
+      paused: Boolean(paused),
+      reason: String(reason || (paused ? "Emergency pause requested." : "Automation resumed.")),
+      updatedAt: new Date().toISOString(),
+      updatedBy: String(updatedBy || "authenticated-operator"),
+    };
+    await this.ctx.storage.put("status", status);
+    return status;
+  }
 }
 
-export async function dispatchWorkflow(env, inputs = {}, fetchImpl = fetch) {
-  if (!env.GITHUB_TOKEN) {
-    throw new Error("GITHUB_TOKEN is not configured");
-  }
+function control(env) {
+  return env.AUTOMATION_CONTROL.getByName(CONTROL_NAME);
+}
 
-  const path = [
-    "repos",
-    encodeURIComponent(env.GITHUB_OWNER),
-    encodeURIComponent(env.GITHUB_REPO),
-    "actions",
-    "workflows",
-    encodeURIComponent(env.GITHUB_WORKFLOW),
-    "dispatches",
-  ].join("/");
-
-  const response = await fetchImpl(`https://api.github.com/${path}`, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      "User-Agent": "volguard-github-scheduler",
-      "X-GitHub-Api-Version": GITHUB_API_VERSION,
-    },
-    body: JSON.stringify({ ref: env.GITHUB_REF, inputs }),
-  });
-
-  if (response.status !== 204) {
-    throw new Error(`GitHub workflow dispatch failed with status ${response.status}`);
-  }
-
-  return { status: response.status };
+function json(payload, init = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json; charset=utf-8");
+  headers.set("Cache-Control", "no-store");
+  return new Response(JSON.stringify(payload), { ...init, headers });
 }
 
 const worker = {
   async scheduled(controller, env) {
+    const automation = await control(env).getStatus();
+    if (automation.paused) {
+      console.log(JSON.stringify({
+        event: "github_workflow_dispatch_skipped",
+        reason: "automation_paused",
+        scheduledAt: new Date(controller.scheduledTime).toISOString(),
+        automation,
+      }));
+      return;
+    }
     const runEntry = shouldRunEntry(controller.scheduledTime);
-    const result = await dispatchWorkflow(env, { run_entry: String(runEntry) });
+    const runReplay = shouldRunReplay(controller.scheduledTime);
+    const result = await dispatchWorkflow(env, {
+      run_entry: String(runEntry),
+      run_replay: String(runReplay),
+    });
     console.log(JSON.stringify({
       event: "github_workflow_dispatched",
       scheduledAt: new Date(controller.scheduledTime).toISOString(),
       workflow: env.GITHUB_WORKFLOW,
       ref: env.GITHUB_REF,
       runEntry,
+      runReplay,
       status: result.status,
     }));
+  },
+
+  async fetch(request, env) {
+    const origin = request.headers.get("Origin") ?? "";
+    const cors = corsHeaders(origin, env.DASHBOARD_ORIGIN);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+
+    const url = new URL(request.url);
+    if (url.pathname === "/status" && request.method === "GET") {
+      const status = await control(env).getStatus();
+      return json({
+        ...status,
+        mode: "paper",
+        exitCadenceMinutes: 5,
+        entryCadenceMinutes: 10,
+      }, { headers: cors });
+    }
+    if (url.pathname !== "/control" || request.method !== "POST") {
+      return json({ error: "Not found." }, { status: 404, headers: cors });
+    }
+    if (!env.CONTROL_TOKEN) {
+      return json({ error: "Control is not configured." }, { status: 503, headers: cors });
+    }
+    const supplied = request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    if (!supplied || !(await secureEqual(supplied, env.CONTROL_TOKEN))) {
+      return json({ error: "Unauthorized." }, { status: 401, headers: cors });
+    }
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "Invalid JSON." }, { status: 400, headers: cors });
+    }
+    if (body?.action !== "pause" && body?.action !== "resume") {
+      return json({ error: "Action must be pause or resume." }, { status: 422, headers: cors });
+    }
+    const status = await control(env).setPaused(
+      body.action === "pause",
+      body.reason,
+      "github-actions-operator",
+    );
+    console.log(JSON.stringify({ event: "automation_control_changed", ...status }));
+    return json(status, { headers: cors });
   },
 };
 

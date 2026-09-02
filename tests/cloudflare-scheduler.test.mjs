@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  corsHeaders,
   dispatchWorkflow,
+  shouldRunReplay,
   shouldRunEntry,
-} from "../workers/github-scheduler/src/index.mjs";
+} from "../workers/github-scheduler/src/core.mjs";
 
 const env = {
   GITHUB_OWNER: "Brikita",
@@ -39,6 +41,17 @@ test("selects every other five-minute trigger for the entry cycle", () => {
   assert.equal(shouldRunEntry(Date.parse("2026-09-02T13:07:00Z")), false);
   assert.equal(shouldRunEntry(Date.parse("2026-09-02T13:12:00Z")), true);
   assert.equal(shouldRunEntry(Date.parse("2026-09-02T13:17:00Z")), false);
+});
+
+test("selects only the first weekday cycle for the daily replay", () => {
+  assert.equal(shouldRunReplay(Date.parse("2026-09-02T13:02:00Z")), true);
+  assert.equal(shouldRunReplay(Date.parse("2026-09-02T13:12:00Z")), false);
+  assert.equal(shouldRunReplay(Date.parse("2026-09-02T14:02:00Z")), false);
+});
+
+test("allows CORS only for the configured dashboard origin", () => {
+  assert.equal(corsHeaders("https://volguard.example", "https://volguard.example")["Access-Control-Allow-Origin"], "https://volguard.example");
+  assert.equal(corsHeaders("https://attacker.example", "https://volguard.example")["Access-Control-Allow-Origin"], undefined);
 });
 
 test("fails closed without a GitHub secret", async () => {
