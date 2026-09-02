@@ -1,6 +1,7 @@
 import type { AlpacaSnapshot } from './alpaca-snapshot.ts';
 import type { OptionScanBatch } from './option-intelligence.ts';
 import type { PaperOrderEvent } from './paper-order.ts';
+import type { StrategyReplay } from './replay.ts';
 
 async function publishPayload(
   payload: unknown,
@@ -54,4 +55,13 @@ export async function publishPaperOrderEvent(
   sitesBypassToken?: string,
 ): Promise<void> {
   await publishPayload(event, endpoint, token, 'Paper order event', sitesBypassToken);
+}
+
+export async function publishStrategyReplay(
+  replay: StrategyReplay,
+  endpoint: string,
+  token: string,
+  sitesBypassToken?: string,
+): Promise<void> {
+  await publishPayload(replay, endpoint, token, 'Strategy replay', sitesBypassToken);
 }

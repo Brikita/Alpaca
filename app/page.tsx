@@ -12,9 +12,19 @@ import { constructPosition, toTradeProposal } from '../lib/position-constructor'
 import { evaluateProposal } from '../lib/risk-governor';
 import { DEFAULT_RISK_POLICY } from '../lib/domain';
 import { MAX_OPEN_STRATEGIES, openPortfolio } from '../lib/portfolio-positions';
+import type { TradePerformance } from '../lib/performance-analytics';
+import type { StrategyReplay } from '../lib/replay';
 
 const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
 const STARTING_EQUITY = 100_000;
+
+interface AutomationStatus {
+  paused: boolean;
+  reason: string;
+  updatedAt: string | null;
+  exitCadenceMinutes: number;
+  entryCadenceMinutes: number;
+}
 
 function money(value: number, digits = 2): string {
   return new Intl.NumberFormat('en-US', {
@@ -109,6 +119,9 @@ export default function Home() {
   const [tradeHistory, setTradeHistory] = useState<PaperOrderEvent[]>([]);
   const [telemetryError, setTelemetryError] = useState(false);
   const [historyError, setHistoryError] = useState(false);
+  const [automation, setAutomation] = useState<AutomationStatus | null>(null);
+  const [performance, setPerformance] = useState<TradePerformance | null>(null);
+  const [replay, setReplay] = useState<StrategyReplay | null>(null);
   const [timeZoneLabel, setTimeZoneLabel] = useState<TimeZoneLabel>('EAT');
 
   useEffect(() => {
@@ -127,10 +140,12 @@ export default function Home() {
     let active = true;
     async function refreshDashboard() {
       try {
-        const [telemetryResponse, scanResponse, historyResponse] = await Promise.all([
+        const [telemetryResponse, scanResponse, historyResponse, automationResponse, performanceResponse] = await Promise.all([
           fetch('/api/telemetry', { cache: 'no-store' }),
           fetch('/api/scans', { cache: 'no-store' }),
           fetch('/api/history', { cache: 'no-store' }),
+          fetch('/api/automation', { cache: 'no-store' }),
+          fetch('/api/performance', { cache: 'no-store' }),
         ]);
         if (!telemetryResponse.ok || !scanResponse.ok) throw new Error('Dashboard data unavailable');
         const telemetryPayload = (await telemetryResponse.json()) as { snapshot: AlpacaSnapshot | null };
@@ -138,6 +153,12 @@ export default function Home() {
         const historyPayload = historyResponse.ok
           ? (await historyResponse.json()) as { decisions: DecisionHistoryItem[]; trades: PaperOrderEvent[] }
           : { decisions: [], trades: [] };
+        const automationPayload = automationResponse.ok
+          ? await automationResponse.json() as AutomationStatus
+          : null;
+        const performancePayload = performanceResponse.ok
+          ? await performanceResponse.json() as { actual: TradePerformance; replay: StrategyReplay | null }
+          : null;
         if (active) {
           setSnapshot(telemetryPayload.snapshot);
           setScanBatch(scanPayload.batch);
@@ -147,6 +168,9 @@ export default function Home() {
           }
           setTelemetryError(false);
           setHistoryError(!historyResponse.ok);
+          setAutomation(automationPayload);
+          setPerformance(performancePayload?.actual ?? null);
+          setReplay(performancePayload?.replay ?? null);
         }
       } catch {
         if (active) setTelemetryError(true);
@@ -178,7 +202,7 @@ export default function Home() {
   const underlyingOccupied = Boolean(leader && portfolio.underlyings.has(leader.symbol));
   const construction = leader ? constructPosition(leader) : null;
   const position = construction?.status === 'constructed' ? construction.position : null;
-  const councilVotes = position && leader ? runAgentCouncil(leader, position) : [];
+  const councilVotes = position && leader ? runAgentCouncil(leader, position, scanBatch?.catalyst) : [];
   const proposalDecision = position && snapshot && !portfolioFull && !underlyingOccupied
     ? evaluateProposal({ ...toTradeProposal(position, councilVotes), correlationSlotsAfter: portfolio.entries.length + 1 }, {
         openRisk: portfolio.openRisk,
@@ -224,6 +248,7 @@ export default function Home() {
           <a className={`nav-item ${view === 'positions' ? 'active' : ''}`} href="/positions"><span>◇</span>Positions</a>
           <a className={`nav-item ${view === 'risk' ? 'active' : ''}`} href="/risk"><span>⊘</span>Risk desk</a>
           <a className={`nav-item ${view === 'journal' ? 'active' : ''}`} href="/journal"><span>≡</span>Journal</a>
+          <a className={`nav-item ${view === 'performance' ? 'active' : ''}`} href="/performance"><span>↗</span>Performance</a>
         </nav>
 
         <div className="sidebar-foot">
@@ -250,7 +275,9 @@ export default function Home() {
                 <option value="UTC">UTC</option>
               </select>
             </label>
-            <span className="agent-toggle" aria-label="Cloudflare automation is scheduled">Scheduled</span>
+            <span className={`agent-toggle ${automation?.paused ? 'paused' : ''}`} aria-label="Cloudflare automation state">
+              {automation?.paused ? 'Paused' : 'Scheduled'}
+            </span>
           </div>
         </header>
 
@@ -275,8 +302,8 @@ export default function Home() {
           </article>
           <article className="metric">
             <p>Agent state</p>
-            <h2 className="state"><i />Automated</h2>
-            <div className="metric-foot"><small>Exit / entry cadence</small><b className="muted">5m / 10m</b></div>
+            <h2 className="state"><i className={automation?.paused ? 'paused' : ''} />{automation?.paused ? 'Paused' : 'Automated'}</h2>
+            <div className="metric-foot"><small>{automation?.reason ?? 'Exit / entry cadence'}</small><b className="muted">{automation ? `${automation.exitCadenceMinutes}m / ${automation.entryCadenceMinutes}m` : '5m / 10m'}</b></div>
           </article>
         </div>
 
@@ -347,7 +374,7 @@ export default function Home() {
               <div><dt>Combined max risk</dt><dd><span>{money(portfolio.openRisk, 0)}</span> / {money(DEFAULT_RISK_POLICY.maxOpenRisk, 0)}</dd></div>
               <div><dt>Daily drawdown</dt><dd><span>{snapshot ? `${dailyDrawdownPct.toFixed(2)}%` : '—'}</span> / 1.50%</dd></div>
               <div><dt>Trading blocked</dt><dd>{snapshot ? (snapshot.account.tradingBlocked ? 'YES' : 'NO') : '—'}</dd></div>
-              <div><dt>Kill switch</dt><dd className="armed">ARMED</dd></div>
+              <div><dt>Kill switch</dt><dd className="armed">{automation?.paused ? 'PAUSED' : 'ARMED'}</dd></div>
             </dl>
             <p className={`risk-message ${accountReady ? '' : 'waiting'}`}><span>{accountReady ? '✓' : '·'}</span> {accountReady ? 'Account ready for analysis' : 'Waiting for verified account state'}</p>
           </aside>
@@ -453,6 +480,64 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="performance-section" id="performance" aria-labelledby="performance-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">EVIDENCE BEFORE SCALE</p>
+              <h2 id="performance-title">Performance &amp; replay</h2>
+            </div>
+            <span>{performance?.closedTrades ?? 0} closed paper trades</span>
+          </div>
+          <div className="performance-grid">
+            <article className="performance-card">
+              <p className="eyebrow">REALIZED PAPER RESULTS</p>
+              <div className="performance-metrics">
+                <div><small>REALIZED P&amp;L</small><strong className={(performance?.realizedPnl ?? 0) < 0 ? 'loss' : 'gain'}>{performance ? signedMoney(performance.realizedPnl) : '—'}</strong></div>
+                <div><small>WIN RATE</small><strong>{performance?.winRate === null || performance?.winRate === undefined ? '—' : `${performance.winRate.toFixed(1)}%`}</strong></div>
+                <div><small>EXPECTANCY</small><strong>{performance?.expectancy === null || performance?.expectancy === undefined ? '—' : signedMoney(performance.expectancy)}</strong></div>
+                <div><small>MAX DRAWDOWN</small><strong className="loss">{performance ? money(performance.maxDrawdown) : '—'}</strong></div>
+              </div>
+              <p>These figures use reconciled, filled paper exits only. Open positions and order previews do not count as realized results.</p>
+            </article>
+            <article className="performance-card replay-card">
+              <div className="history-head">
+                <strong>One-year signal replay</strong>
+                <small>{replay ? `${replay.start} → ${replay.end}` : 'Awaiting first daily replay'}</small>
+              </div>
+              <div className="replay-table">
+                <div className="replay-row replay-head"><span>Symbol</span><span>Trades</span><span>Win rate</span><span>Signal</span><span>Baseline</span></div>
+                {replay?.results.map((result) => (
+                  <div className="replay-row" key={result.symbol}>
+                    <strong>{result.symbol}</strong>
+                    <span>{result.trades}</span>
+                    <span>{result.winRate === null ? '—' : `${result.winRate.toFixed(1)}%`}</span>
+                    <span className={result.cumulativeSignalReturnPct >= 0 ? 'gain' : 'loss'}>{signedPercent(result.cumulativeSignalReturnPct)}</span>
+                    <span className={result.baselineReturnPct >= 0 ? 'gain' : 'loss'}>{signedPercent(result.baselineReturnPct)}</span>
+                  </div>
+                ))}
+                {!replay && <div className="history-empty"><strong>No replay stored yet</strong><p>The scheduler refreshes this evidence once each trading day.</p></div>}
+              </div>
+              <small className="capture-note">{replay?.disclosure ?? 'Underlying signal replay is intentionally separated from actual option-trade results.'}</small>
+            </article>
+          </div>
+          <article className="catalyst-card">
+            <div>
+              <p className="eyebrow">VERIFIED ALPACA NEWS</p>
+              <h3>Catalyst agent: {scanBatch?.catalyst?.status?.toUpperCase() ?? 'WAITING'}</h3>
+              <p>{scanBatch?.catalyst?.rationale ?? 'The next option scan will attach a verified catalyst snapshot.'}</p>
+            </div>
+            <div className="catalyst-list">
+              {scanBatch?.catalyst?.articles.slice(0, 4).map((article) => (
+                <a href={article.url} target="_blank" rel="noreferrer" key={article.id}>
+                  <span className={article.highImpact ? 'risk' : ''}>{article.highImpact ? 'HIGH IMPACT' : article.source.toUpperCase()}</span>
+                  <strong>{article.headline}</strong>
+                  <small>{historyTimeLabel(article.createdAt, TIME_ZONES[timeZoneLabel])} {timeZoneLabel}</small>
+                </a>
+              ))}
+            </div>
+          </article>
+        </section>
+
         <footer className="statusbar">
           <span>VOLGUARD AI <b>v0.1.0</b></span>
           <span>Educational paper-trading system · No real capital</span>
@@ -499,7 +584,7 @@ export default function Home() {
             )}
             {proposalDecision && (
               <>
-                <p className="trace-summary"><b>Specialist council.</b> Regime and volatility agents must produce evidence-based approvals, while the red team may veto. The catalyst agent abstains until a verified event feed exists; it never invents clearance.</p>
+                <p className="trace-summary"><b>Specialist council.</b> Regime and volatility agents must approve, verified Alpaca news must be catalyst-clear, and the red team retains veto authority.</p>
                 <div className="gate-list">
                   {councilVotes.map((vote, index) => {
                     const abstained = !vote.approved && vote.agent !== 'red_team';

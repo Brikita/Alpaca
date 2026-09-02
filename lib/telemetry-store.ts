@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import type { AlpacaSnapshot } from './alpaca-snapshot.ts';
 import type { OptionScanBatch } from './option-intelligence.ts';
 import type { PaperOrderEvent } from './paper-order.ts';
+import type { StrategyReplay } from './replay.ts';
 
 interface VolGuardEnvironment {
   DB: D1Database;
@@ -66,6 +67,15 @@ const CREATE_PAPER_ORDER_EVENT_CLIENT_INDEX_SQL = `
   ON paper_order_events(client_order_id)
 `;
 
+const CREATE_STRATEGY_REPLAY_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS strategy_replays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    schema_version INTEGER NOT NULL,
+    captured_at TEXT NOT NULL UNIQUE,
+    payload_json TEXT NOT NULL
+  )
+`;
+
 function bindings(): VolGuardEnvironment {
   return env as unknown as VolGuardEnvironment;
 }
@@ -79,7 +89,27 @@ async function ensureTelemetrySchema(database: D1Database): Promise<void> {
     database.prepare(CREATE_PAPER_ORDER_EVENT_TABLE_SQL),
     database.prepare(CREATE_PAPER_ORDER_EVENT_RECORDED_INDEX_SQL),
     database.prepare(CREATE_PAPER_ORDER_EVENT_CLIENT_INDEX_SQL),
+    database.prepare(CREATE_STRATEGY_REPLAY_TABLE_SQL),
   ]);
+}
+
+export async function saveStrategyReplay(replay: StrategyReplay): Promise<void> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  await database.prepare(`
+    INSERT INTO strategy_replays (schema_version, captured_at, payload_json)
+    VALUES (?, ?, ?)
+    ON CONFLICT(captured_at) DO NOTHING
+  `).bind(replay.schemaVersion, replay.capturedAt, JSON.stringify(replay)).run();
+}
+
+export async function latestStrategyReplay(): Promise<StrategyReplay | null> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  const row = await database.prepare(`
+    SELECT payload_json FROM strategy_replays ORDER BY captured_at DESC LIMIT 1
+  `).first<{ payload_json: string }>();
+  return row ? JSON.parse(row.payload_json) as StrategyReplay : null;
 }
 
 export function telemetryIngestToken(): string | undefined {

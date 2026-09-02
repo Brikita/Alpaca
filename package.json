@@ -17,6 +17,7 @@
     "execute:latest": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/execute-latest-paper-order.ts",
     "monitor:position": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/monitor-open-paper-position.ts",
     "reconcile:orders": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/reconcile-paper-orders.ts",
+    "replay:strategy": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/run-strategy-replay.ts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

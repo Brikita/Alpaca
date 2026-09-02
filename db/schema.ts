@@ -46,3 +46,10 @@ export const paperOrderEvents = sqliteTable(
     index('idx_paper_order_events_client_order_id').on(table.clientOrderId),
   ],
 );
+
+export const strategyReplays = sqliteTable('strategy_replays', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  schemaVersion: integer('schema_version').notNull(),
+  capturedAt: text('captured_at').notNull().unique(),
+  payloadJson: text('payload_json').notNull(),
+});
