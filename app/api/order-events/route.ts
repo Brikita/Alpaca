@@ -1,6 +1,6 @@
 import { isPaperOrderEvent } from '../../../lib/paper-order-contract';
 import {
-  recentPaperOrderEvents,
+  paperOrderLifecycleEvents,
   savePaperOrderEvent,
   telemetryIngestToken,
 } from '../../../lib/telemetry-store';
@@ -22,7 +22,7 @@ async function secureEqual(left: string, right: string): Promise<boolean> {
 
 export async function GET(): Promise<Response> {
   return Response.json(
-    { events: await recentPaperOrderEvents() },
+    { events: await paperOrderLifecycleEvents() },
     { headers: { 'cache-control': 'no-store, max-age=0' } },
   );
 }

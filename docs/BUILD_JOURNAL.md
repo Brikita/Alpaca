@@ -193,7 +193,7 @@ The first QQQ and GLD candidates showed that a valid signal can be too expensive
 
 ### Remaining limitation
 
-Directional verticals and iron-condor construction still fail closed. The next milestone is the independent agent council, followed by a non-submitting Alpaca complex-order preview. Open-position maximum risk must be modeled before more than one position can be considered.
+Directional verticals and iron-condor construction still fail closed. The next milestone is the independent agent council, followed by a non-submitting Alpaca complex-order preview. This constraint was later resolved with a lifecycle-based two-strategy portfolio ledger and combined maximum-risk accounting.
 
 ## 2026-08-31 — All-device dashboard
 

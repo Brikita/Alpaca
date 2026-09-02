@@ -10,6 +10,8 @@ import type { OptionScan, OptionScanBatch } from '../lib/option-intelligence';
 import type { PaperOrderEvent } from '../lib/paper-order';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor';
 import { evaluateProposal } from '../lib/risk-governor';
+import { DEFAULT_RISK_POLICY } from '../lib/domain';
+import { MAX_OPEN_STRATEGIES, openPortfolio } from '../lib/portfolio-positions';
 
 const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
 const STARTING_EQUITY = 100_000;
@@ -162,7 +164,6 @@ export default function Home() {
   const equity = snapshot?.account.equity;
   const competitionPnl = equity === undefined ? undefined : equity - STARTING_EQUITY;
   const competitionPnlPct = competitionPnl === undefined ? undefined : (competitionPnl / STARTING_EQUITY) * 100;
-  const grossPositionValue = snapshot?.positions.reduce((sum, position) => sum + Math.abs(position.marketValue), 0) ?? 0;
   const dailyDrawdown = snapshot ? Math.max(0, snapshot.account.previousEquity - snapshot.account.equity) : 0;
   const dailyDrawdownPct = snapshot?.account.previousEquity
     ? (dailyDrawdown / snapshot.account.previousEquity) * 100
@@ -173,21 +174,26 @@ export default function Home() {
   const leader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
   const passedSignalChecks = leader?.checks.filter((check) => check.passed).length ?? 0;
   const candidate = leader?.status === 'candidate';
-  const portfolioOccupied = Boolean(snapshot && snapshot.positions.length > 0);
+  const portfolio = openPortfolio(tradeHistory);
+  const portfolioFull = portfolio.entries.length >= MAX_OPEN_STRATEGIES;
+  const underlyingOccupied = Boolean(leader && portfolio.underlyings.has(leader.symbol));
   const construction = leader ? constructPosition(leader) : null;
   const position = construction?.status === 'constructed' ? construction.position : null;
   const councilVotes = position && leader ? runAgentCouncil(leader, position) : [];
-  const proposalDecision = position && snapshot && snapshot.positions.length === 0
-    ? evaluateProposal(toTradeProposal(position, councilVotes), {
-        openRisk: 0,
+  const proposalDecision = position && snapshot && !portfolioFull && !underlyingOccupied
+    ? evaluateProposal({ ...toTradeProposal(position, councilVotes), correlationSlotsAfter: portfolio.entries.length + 1 }, {
+        openRisk: portfolio.openRisk,
+        openPositions: portfolio.entries.length,
         dailyDrawdown,
         competitionDrawdown: Math.max(0, STARTING_EQUITY - snapshot.account.equity),
       })
     : null;
   const decisionHeading = leader
     ? candidate
-      ? portfolioOccupied
-        ? `${leader.symbol} scan held while a paper position is open`
+      ? portfolioFull
+        ? `${leader.symbol} scan held because the two-strategy portfolio is full`
+        : underlyingOccupied
+        ? `${leader.symbol} scan held because that underlying is already open`
         : proposalDecision && !proposalDecision.approved
         ? `${leader.symbol} signal blocked by risk policy`
         : `${leader.symbol} cleared every signal gate`
@@ -270,10 +276,10 @@ export default function Home() {
             </div>
           </article>
           <article className="metric">
-            <p>Open positions</p>
-            <h2>{snapshot ? snapshot.positions.length : '—'}</h2>
-            <div className="risk-track"><i style={{ width: `${Math.min(100, (grossPositionValue / 3000) * 100)}%` }} /></div>
-            <div className="metric-foot"><small>{snapshot ? `${money(grossPositionValue, 0)} gross value` : 'Awaiting sync'}</small><b className="muted">Observed</b></div>
+            <p>Open strategies</p>
+            <h2>{snapshot ? `${portfolio.entries.length} / ${MAX_OPEN_STRATEGIES}` : '—'}</h2>
+            <div className="risk-track"><i style={{ width: `${Math.min(100, (portfolio.openRisk / DEFAULT_RISK_POLICY.maxOpenRisk) * 100)}%` }} /></div>
+            <div className="metric-foot"><small>{snapshot ? `${money(portfolio.openRisk, 0)} max risk` : 'Awaiting sync'}</small><b className="muted">{money(DEFAULT_RISK_POLICY.maxOpenRisk, 0)} cap</b></div>
           </article>
           <article className="metric">
             <p>Agent state</p>
@@ -290,8 +296,10 @@ export default function Home() {
                 <h2>{decisionHeading}</h2>
               </div>
               <span className={`confidence ${proposalDecision && !proposalDecision.approved || !candidate ? 'abstain' : ''}`}>
-                {portfolioOccupied
-                  ? 'POSITION OPEN'
+                {portfolioFull
+                  ? 'PORTFOLIO FULL'
+                  : underlyingOccupied
+                  ? `${leader?.symbol} OPEN`
                   : proposalDecision && !proposalDecision.approved
                   ? 'RISK BLOCKED'
                   : candidate ? `${Math.round((leader?.confidence ?? 0) * 100)}% signal confidence` : 'NO TRADE'}
@@ -313,8 +321,10 @@ export default function Home() {
               {leader?.thesis ?? 'Run the local read-only collector to compare realized volatility with the live at-the-money options straddle.'}
               {' '}{position && proposalDecision
                 ? `${position.optimized ? 'The optimizer selected covered legs whose' : 'Exact legs'} conservative prices imply ${money(position.maxLoss)} maximum loss${position.maxProfit === null ? '' : ` and ${money(position.maxProfit)} maximum expiration profit`}; the proposal passed ${proposalDecision.passed}/${proposalDecision.total} portfolio gates.`
-                : portfolioOccupied
-                  ? 'A paper position is already open, so VolGuard blocks any new proposal until its option legs and maximum risk are reconciled.'
+                : portfolioFull
+                  ? 'Two paper strategies are already open, so VolGuard blocks new entries while continuing to monitor each lifecycle independently.'
+                  : underlyingOccupied
+                    ? `VolGuard allows a second strategy, but not another ${leader?.symbol} position; this prevents stacking exposure on one underlying.`
                 : 'Risk sizing waits for concrete option legs and a defined maximum loss.'}
             </p>
 
@@ -332,7 +342,7 @@ export default function Home() {
             </div>
 
             <div className="decision-foot">
-              <span><i />Passed {passedSignalChecks}/6 signal checks{proposalDecision ? ` · ${proposalDecision.passed}/12 risk gates` : ' · risk governor pending'}</span>
+              <span><i />Passed {passedSignalChecks}/6 signal checks{proposalDecision ? ` · ${proposalDecision.passed}/${proposalDecision.total} risk gates` : ' · risk governor pending'}</span>
               <button type="button" disabled={!leader} onClick={() => setTraceOpen(true)}>View decision trace <b>→</b></button>
             </div>
           </article>
@@ -341,7 +351,8 @@ export default function Home() {
             <div className="card-heading"><div><p className="eyebrow">READ-ONLY ACCOUNT GUARD</p><h2>Account health</h2></div><span className="shield">{accountReady ? '✓' : '·'}</span></div>
             <div className={`risk-dial ${accountReady ? 'ready' : ''}`}><div><strong>{snapshot ? (accountReady ? '100%' : 'CHECK') : '—'}</strong><span>{snapshot ? (accountReady ? 'READY' : 'REVIEW') : 'NO DATA'}</span></div></div>
             <dl className="risk-list">
-              <div><dt>Open option legs</dt><dd>{snapshot ? snapshot.positions.length : '—'}</dd></div>
+              <div><dt>Open strategies</dt><dd>{snapshot ? `${portfolio.entries.length} / ${MAX_OPEN_STRATEGIES}` : '—'}</dd></div>
+              <div><dt>Combined max risk</dt><dd><span>{money(portfolio.openRisk, 0)}</span> / {money(DEFAULT_RISK_POLICY.maxOpenRisk, 0)}</dd></div>
               <div><dt>Daily drawdown</dt><dd><span>{snapshot ? `${dailyDrawdownPct.toFixed(2)}%` : '—'}</span> / 1.50%</dd></div>
               <div><dt>Trading blocked</dt><dd>{snapshot ? (snapshot.account.tradingBlocked ? 'YES' : 'NO') : '—'}</dd></div>
               <div><dt>Kill switch</dt><dd className="armed">ARMED</dd></div>

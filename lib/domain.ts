@@ -43,6 +43,7 @@ export interface TradeProposal {
 
 export interface PortfolioSnapshot {
   openRisk: number;
+  openPositions: number;
   dailyDrawdown: number;
   competitionDrawdown: number;
 }
@@ -50,6 +51,7 @@ export interface PortfolioSnapshot {
 export interface RiskPolicy {
   maxLossPerTrade: number;
   maxOpenRisk: number;
+  maxOpenPositions: number;
   maxDailyDrawdown: number;
   maxCompetitionDrawdown: number;
   maxCorrelatedPositions: number;
@@ -75,7 +77,8 @@ export interface RiskDecision {
 
 export const DEFAULT_RISK_POLICY: RiskPolicy = {
   maxLossPerTrade: 500,
-  maxOpenRisk: 3_000,
+  maxOpenRisk: 1_000,
+  maxOpenPositions: 2,
   maxDailyDrawdown: 1_500,
   maxCompetitionDrawdown: 4_000,
   maxCorrelatedPositions: 2,

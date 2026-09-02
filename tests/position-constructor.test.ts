@@ -65,7 +65,7 @@ test('risk governor blocks the live-sized candidate before council review', () =
   assert.equal(result.status, 'constructed');
   if (result.status !== 'constructed') return;
   const decision = evaluateProposal(toTradeProposal(result.position), {
-    openRisk: 0, dailyDrawdown: 0, competitionDrawdown: 0,
+    openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, false);
   assert.equal(decision.gates.find((gate) => gate.id === 'trade-risk')?.passed, false);
@@ -93,12 +93,12 @@ test('budgeted structure clears trade risk but remains blocked without council v
   assert.equal(result.status, 'constructed');
   if (result.status !== 'constructed') return;
   const decision = evaluateProposal(toTradeProposal(result.position), {
-    openRisk: 0, dailyDrawdown: 0, competitionDrawdown: 0,
+    openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, false);
   assert.equal(decision.gates.find((gate) => gate.id === 'trade-risk')?.passed, true);
   assert.equal(decision.gates.find((gate) => gate.id === 'council')?.passed, false);
-  assert.equal(decision.passed, 11);
+  assert.equal(decision.passed, 12);
 });
 
 test('constructs a conservative bear put spread within the risk budget', () => {

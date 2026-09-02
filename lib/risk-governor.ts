@@ -28,6 +28,7 @@ export function evaluateProposal(
     gate('expiry', 'Not expiring today', !proposal.expiresToday, proposal.expiresToday ? 'Same-day expiry blocked' : 'Expiry window accepted'),
     gate('trade-risk', 'Per-trade risk', proposal.maxLoss <= policy.maxLossPerTrade, `$${proposal.maxLoss} / $${policy.maxLossPerTrade}`),
     gate('portfolio-risk', 'Portfolio risk', portfolio.openRisk + proposal.maxLoss <= policy.maxOpenRisk, `$${portfolio.openRisk + proposal.maxLoss} / $${policy.maxOpenRisk}`),
+    gate('position-capacity', 'Strategy capacity', portfolio.openPositions + 1 <= policy.maxOpenPositions, `${portfolio.openPositions + 1} / ${policy.maxOpenPositions} positions`),
     gate('daily-drawdown', 'Daily drawdown', portfolio.dailyDrawdown <= policy.maxDailyDrawdown, `$${portfolio.dailyDrawdown} / $${policy.maxDailyDrawdown}`),
     gate('competition-drawdown', 'Competition drawdown', portfolio.competitionDrawdown <= policy.maxCompetitionDrawdown, `$${portfolio.competitionDrawdown} / $${policy.maxCompetitionDrawdown}`),
     gate('correlation', 'Correlation capacity', proposal.correlationSlotsAfter <= policy.maxCorrelatedPositions, `${proposal.correlationSlotsAfter} / ${policy.maxCorrelatedPositions} slots`),

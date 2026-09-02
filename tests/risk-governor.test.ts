@@ -17,18 +17,27 @@ const safeProposal: TradeProposal = {
 
 test('approves a proposal that passes every deterministic gate', () => {
   const result = evaluateProposal(safeProposal, {
-    openRisk: 920, dailyDrawdown: 180, competitionDrawdown: 0,
+    openRisk: 420, openPositions: 1, dailyDrawdown: 180, competitionDrawdown: 0,
   });
   assert.equal(result.approved, true);
-  assert.equal(result.passed, 12);
+  assert.equal(result.passed, 13);
 });
 
 test('blocks a trade that breaches per-trade and portfolio limits', () => {
   const result = evaluateProposal(
     { ...safeProposal, maxLoss: 900 },
-    { openRisk: 2_500, dailyDrawdown: 180, competitionDrawdown: 0 },
+    { openRisk: 900, openPositions: 1, dailyDrawdown: 180, competitionDrawdown: 0 },
   );
   assert.equal(result.approved, false);
   assert.equal(result.gates.find((item) => item.id === 'trade-risk')?.passed, false);
   assert.equal(result.gates.find((item) => item.id === 'portfolio-risk')?.passed, false);
+});
+
+test('blocks a third strategy even when its dollar risk would fit', () => {
+  const result = evaluateProposal(
+    { ...safeProposal, maxLoss: 50 },
+    { openRisk: 500, openPositions: 2, dailyDrawdown: 0, competitionDrawdown: 0 },
+  );
+  assert.equal(result.approved, false);
+  assert.equal(result.gates.find((item) => item.id === 'position-capacity')?.passed, false);
 });

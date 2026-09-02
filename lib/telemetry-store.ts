@@ -211,3 +211,20 @@ export async function recentPaperOrderEvents(limit = 20): Promise<PaperOrderEven
     .all<{ payload_json: string }>();
   return result.results.map((row) => JSON.parse(row.payload_json) as PaperOrderEvent);
 }
+
+export async function paperOrderLifecycleEvents(limit = 200): Promise<PaperOrderEvent[]> {
+  const database = bindings().DB;
+  await ensureTelemetrySchema(database);
+  const safeLimit = Math.max(1, Math.min(500, Math.floor(limit)));
+  const result = await database
+    .prepare(`
+      SELECT payload_json
+      FROM paper_order_events
+      WHERE event_type != 'monitored'
+      ORDER BY recorded_at DESC
+      LIMIT ?
+    `)
+    .bind(safeLimit)
+    .all<{ payload_json: string }>();
+  return result.results.map((row) => JSON.parse(row.payload_json) as PaperOrderEvent);
+}

@@ -124,7 +124,7 @@
 
 **Status:** Accepted
 
-**Decision:** Do not run the twelve-gate portfolio governor until a position constructor has selected exact contracts, quantity, limit price, and theoretical maximum loss.
+**Decision:** Do not run the thirteen-gate portfolio governor until a position constructor has selected exact contracts, quantity, limit price, and theoretical maximum loss. The added capacity gate limits the system to two simultaneous strategy lifecycles.
 
 **Reasoning:** A strategy label such as “iron condor” does not define risk. Treating it as executable would create false precision.
 

@@ -47,10 +47,10 @@ test('produces four named, auditable votes without inventing catalyst clearance'
 
 test('allows the governor to approve only when council evidence and all rules pass', () => {
   const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position)), {
-    openRisk: 0, dailyDrawdown: 0, competitionDrawdown: 0,
+    openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, true);
-  assert.equal(decision.passed, 12);
+  assert.equal(decision.passed, 13);
 });
 
 test('red team vetoes an oversized position', () => {

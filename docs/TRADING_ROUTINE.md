@@ -20,7 +20,9 @@ The dashboard's “last sync” label tells you the age of the evidence, not tha
 ### 2. Define the session risk budget
 
 - Maximum theoretical loss per new trade: $500 in the $100,000 competition account.
-- Maximum total open risk: $3,000.
+- Maximum simultaneous strategies: 2.
+- Maximum total open risk: $1,000.
+- Maximum one strategy per underlying, so a second trade must diversify rather than stack the same symbol.
 - Daily drawdown stop: $1,500.
 - Competition drawdown kill switch: $4,000.
 - Maximum two correlated positions.

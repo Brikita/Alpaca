@@ -66,7 +66,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Decide whether to investigate a setup, diagnose stale feeds, and review which filter prevented low-quality trades.
 
-**Current limitation:** These are signal checks, not the twelve portfolio-risk gates. Passing them only creates a candidate for the next stage.
+**Current limitation:** These are signal checks, not the thirteen portfolio-risk gates. Passing them only creates a candidate for the next stage.
 
 ### Exact position constructor
 
@@ -76,9 +76,9 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Enforce the per-trade budget, create an auditable order preview, and explain why a market opportunity may still be unaffordable.
 
-**Current limitation:** Short-volatility iron-condor construction still fails closed. Open-position maximum risk must be modeled before VolGuard may consider a second position.
+**Current limitation:** Short-volatility iron-condor construction still fails closed. The two-strategy ledger supports diversification, but it deliberately refuses two positions on the same underlying.
 
-### Twelve-gate risk governor
+### Thirteen-gate risk governor
 
 **Purpose:** Block any proposal that violates paper-only mode, defined-risk policy, exposure limits, liquidity requirements, quote freshness, or agent-consensus rules.
 
@@ -90,23 +90,23 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 ### Atomic paper-order execution
 
-**Purpose:** Convert a fresh 12/12-approved position into one Alpaca multi-leg limit order without manually entering individual legs.
+**Purpose:** Convert a fresh 13/13-approved position into one Alpaca multi-leg limit order without manually entering individual legs.
 
 **Strengths:** Always runs the broker dry-run first; uses one idempotent VolGuard client order ID; sends two to four legs atomically with explicit opening intents; uses the conservative net debit as the limit; refuses evidence older than 60 seconds; and requires a deliberate one-run paper unlock. Live routing remains prohibited.
 
 **Uses:** Safe paper execution, reproducible demonstrations, and testing the complete signal-to-broker workflow.
 
-**Current limitation:** Paper fills can differ from live execution. The runner refuses another proposal while any position or open order exists because aggregated options maximum risk is not yet modeled.
+**Current limitation:** Paper fills can differ from live execution. The runner permits at most two reconciled strategy lifecycles, $500 maximum loss per strategy, $1,000 combined maximum risk, and one strategy per underlying. Any unmatched broker leg or open order blocks another proposal.
 
 ### Governed paper-position exits
 
-**Purpose:** Manage a filled debit spread with precommitted profit, loss, and time rules rather than discretionary reactions to the account P&L.
+**Purpose:** Manage up to two filled debit spreads with independent precommitted profit, loss, and time rules rather than discretionary reactions to the account P&L.
 
-**Strengths:** Reconstructs the exact entry from the durable journal; verifies the long and short broker positions; prices closure conservatively at sell-bid and buy-ask; rejects quotes older than 60 seconds; dry-runs one atomic multi-leg close; and uses a closing-only process lock that cannot authorize opening intents.
+**Strengths:** Reconstructs each exact entry from the durable journal; verifies the complete portfolio leg set against the broker; prices each closure conservatively at sell-bid and buy-ask; rejects quotes older than 60 seconds; dry-runs one atomic multi-leg close per triggered strategy; and uses a closing-only process lock that cannot authorize opening intents.
 
 **Uses:** Intraday monitoring, expiration-risk control, complete trade demonstrations, and realized-P&L attribution.
 
-**Current limitation:** A weekday heartbeat now invokes the monitor every 15 minutes, but the host and authenticated local Alpaca runner must remain available. The prior-weekday rule is weekend-aware but does not yet consume the Alpaca market calendar for exchange holidays.
+**Current limitation:** Cloudflare dispatches the authenticated GitHub runner every five minutes during the broad US-session window. The broker clock remains authoritative, while the prior-weekday rule is weekend-aware but does not yet consume the Alpaca market calendar for exchange holidays.
 
 ### Alpaca CLI safety boundary
 

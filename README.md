@@ -61,7 +61,7 @@ Monitor the one matched open paper spread:
 npm run monitor:position
 ```
 
-The monitor uses fresh two-sided quotes, verifies that every recorded option leg still matches the broker positions, and records a hold unless the 50% profit-capture target, 50%-of-debit loss limit, or 3:00 PM ET prior-weekday time exit is reached. Closing submission uses the separate one-process `VOLGUARD_EXIT_ENABLED=paper` lock and reverses all legs in one multi-leg order.
+The monitor uses fresh two-sided quotes, verifies that every recorded option leg across up to two strategies still matches the broker positions, and evaluates each lifecycle independently. It records a hold unless that strategy reaches its 50% profit-capture target, 50%-of-debit loss limit, or 3:00 PM ET prior-weekday time exit. Closing submission uses the separate one-process `VOLGUARD_EXIT_ENABLED=paper` lock and reverses only that strategy's legs in one multi-leg order.
 
 The active VolGuard heartbeat runs this monitor every 15 minutes on weekdays. The script still checks the broker market clock and every safety condition, so a scheduled wake-up is not itself permission to trade.
 

@@ -9,6 +9,7 @@ import {
 } from '../lib/paper-order.ts';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
+import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
 import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
 
 const STARTING_EQUITY = 100_000;
@@ -60,9 +61,12 @@ try {
   const scanUrl = process.env.VOLGUARD_SCAN_URL;
   if (!telemetryUrl || !scanUrl) throw new Error('VolGuard telemetry and scan URLs are required.');
 
-  const [{ snapshot }, { batch }] = await Promise.all([
+  const orderEventUrl = process.env.VOLGUARD_ORDER_EVENT_URL
+    ?? new URL('/api/order-events', scanUrl).toString();
+  const [{ snapshot }, { batch }, { events }] = await Promise.all([
     readJson<{ snapshot: AlpacaSnapshot | null }>(telemetryUrl),
     readJson<{ batch: OptionScanBatch | null }>(scanUrl),
+    readJson<{ events: PaperOrderEvent[] }>(orderEventUrl),
   ]);
   if (!snapshot || !batch) throw new Error('Fresh hosted account and scan evidence are required.');
   if (snapshot.mode !== 'paper') throw new Error('Only the paper account may execute.');
@@ -73,8 +77,11 @@ try {
     || snapshot.account.suspendedByUser
   ) throw new Error('The paper account is not ready for trading.');
   if (snapshot.account.optionsTradingLevel < 3) throw new Error('Options level 3 is required for multi-leg orders.');
-  if (snapshot.positions.length > 0 || snapshot.openOrders.length > 0) {
-    throw new Error('Existing positions or open orders require reconciliation before a new proposal.');
+  const portfolio = openPortfolio(events);
+  if (snapshot.openOrders.length > 0) throw new Error('Open broker orders require reconciliation before a new proposal.');
+  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) throw new Error('The two-strategy portfolio is full.');
+  if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) {
+    throw new Error('Broker option legs do not exactly match the VolGuard portfolio ledger.');
   }
 
   const batchAge = ageSeconds(batch.capturedAt);
@@ -84,15 +91,19 @@ try {
   }
   const leader = batch.scans.find((scan) => scan.symbol === batch.leaderSymbol);
   if (!leader || leader.status !== 'candidate') throw new Error('The fresh scan produced no eligible leader.');
+  if (portfolio.underlyings.has(leader.symbol)) {
+    throw new Error(`A ${leader.symbol} strategy is already open; one position per underlying is enforced.`);
+  }
 
   const construction = constructPosition(leader);
   if (construction.status === 'blocked') throw new Error(construction.reason);
   const currentQuoteAge = Math.ceil(construction.position.quoteAgeSeconds + batchAge);
   const position = { ...construction.position, quoteAgeSeconds: currentQuoteAge };
   const votes = runAgentCouncil(leader, position);
-  const proposal = toTradeProposal(position, votes);
+  const proposal = { ...toTradeProposal(position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
   const decision = evaluateProposal(proposal, {
-    openRisk: 0,
+    openRisk: portfolio.openRisk,
+    openPositions: portfolio.entries.length,
     dailyDrawdown: Math.max(0, snapshot.account.previousEquity - snapshot.account.equity),
     competitionDrawdown: Math.max(0, STARTING_EQUITY - snapshot.account.equity),
   });

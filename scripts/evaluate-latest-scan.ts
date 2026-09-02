@@ -3,6 +3,8 @@ import { runAgentCouncil } from '../lib/agent-council.ts';
 import type { OptionScanBatch } from '../lib/option-intelligence.ts';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
+import type { PaperOrderEvent } from '../lib/paper-order.ts';
+import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
 
 function privateHeaders(): Record<string, string> {
   const token = process.env.VOLGUARD_SITES_BYPASS_TOKEN;
@@ -20,27 +22,32 @@ try {
   const scanUrl = process.env.VOLGUARD_SCAN_URL;
   if (!telemetryUrl || !scanUrl) throw new Error('VolGuard telemetry and scan URLs are required.');
 
-  const [{ snapshot }, { batch }] = await Promise.all([
+  const orderEventUrl = process.env.VOLGUARD_ORDER_EVENT_URL
+    ?? new URL('/api/order-events', scanUrl).toString();
+  const [{ snapshot }, { batch }, { events }] = await Promise.all([
     readJson<{ snapshot: AlpacaSnapshot | null }>(telemetryUrl),
     readJson<{ batch: OptionScanBatch | null }>(scanUrl),
+    readJson<{ events: PaperOrderEvent[] }>(orderEventUrl),
   ]);
   if (!snapshot || !batch) throw new Error('The hosted account snapshot and option scan are required.');
-  if (snapshot.positions.length > 0) {
-    throw new Error('Open-position maximum risk is not modeled yet; evaluation stopped safely.');
-  }
+  const portfolio = openPortfolio(events);
+  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) throw new Error('The two-strategy portfolio is full.');
+  if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) throw new Error('Broker positions do not match the portfolio ledger.');
   const leader = batch.scans.find((scan) => scan.symbol === batch.leaderSymbol);
   if (!leader) throw new Error('The latest scan has no leader.');
+  if (portfolio.underlyings.has(leader.symbol)) throw new Error(`A ${leader.symbol} strategy is already open.`);
 
   const construction = constructPosition(leader);
   if (construction.status === 'blocked') {
     process.stdout.write(`${JSON.stringify({ leader: leader.symbol, signalStatus: leader.status, construction }, null, 2)}\n`);
   } else {
     const votes = runAgentCouncil(leader, construction.position);
-    const proposal = toTradeProposal(construction.position, votes);
+    const proposal = { ...toTradeProposal(construction.position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
     const dailyDrawdown = Math.max(0, snapshot.account.previousEquity - snapshot.account.equity);
     const competitionDrawdown = Math.max(0, 100_000 - snapshot.account.equity);
     const decision = evaluateProposal(proposal, {
-      openRisk: 0,
+      openRisk: portfolio.openRisk,
+      openPositions: portfolio.entries.length,
       dailyDrawdown,
       competitionDrawdown,
     });

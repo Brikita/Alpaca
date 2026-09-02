@@ -12,6 +12,7 @@ import {
   publishPaperOrderEvent,
   publishTelemetrySnapshot,
 } from '../lib/telemetry-client.ts';
+import { openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
 
 interface LatestOptionQuotesResponse {
   quotes?: Record<string, {
@@ -53,25 +54,6 @@ async function readEvents(endpoint: string): Promise<PaperOrderEvent[]> {
   return (await response.json() as { events: PaperOrderEvent[] }).events;
 }
 
-function openEntry(events: PaperOrderEvent[]): PaperOrderEvent {
-  const closedEntries = new Set(events
-    .filter((event) => event.eventType === 'exit_reconciled'
-      && event.brokerStatus === 'filled'
-      && event.filledQuantity > 0)
-    .map((event) => event.exit?.entryClientOrderId)
-    .filter((value): value is string => Boolean(value)));
-  const entries = events.filter((event) => event.eventType === 'reconciled'
-    && !event.exit
-    && event.brokerStatus === 'filled'
-    && event.filledQuantity > 0
-    && event.filledAveragePrice !== null
-    && !closedEntries.has(event.clientOrderId));
-  if (entries.length !== 1) {
-    throw new Error(`Exactly one open reconciled VolGuard entry is required; found ${entries.length}.`);
-  }
-  return entries[0];
-}
-
 function sanitizeQuotes(
   entry: PaperOrderEvent,
   response: LatestOptionQuotesResponse,
@@ -105,7 +87,7 @@ async function publishEvent(
 try {
   const config = configuration();
   const events = await readEvents(config.orderEndpoint);
-  const entry = openEntry(events);
+  const portfolio = openPortfolio(events);
   const snapshot = await collectAlpacaSnapshot(process.env);
   await publishTelemetrySnapshot(
     snapshot,
@@ -131,63 +113,70 @@ try {
   if (snapshot.openOrders.length > 0) {
     throw new Error('An open broker order already exists; reconcile it before creating an exit.');
   }
+  if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) {
+    throw new Error('Broker option legs do not exactly match the VolGuard portfolio ledger.');
+  }
+  if (portfolio.entries.length === 0) {
+    process.stdout.write('No open VolGuard strategies require monitoring.\n');
+    process.exit(0);
+  }
 
-  const symbols = entry.legs.map((leg) => leg.symbol).join(',');
+  const symbols = [...new Set(portfolio.entries.flatMap((entry) => entry.legs.map((leg) => leg.symbol)))].join(',');
   const quoteResponse = await runAlpaca<LatestOptionQuotesResponse>([
     'data', 'option', 'latest-quotes', '--symbols', symbols,
   ], { ...process.env, ALPACA_LIVE_TRADE: 'false' });
-  const evaluation = evaluateExit({
-    entry,
-    positions: snapshot.positions,
-    quotes: sanitizeQuotes(entry, quoteResponse.data),
-  });
-  const monitored = createPaperExitEvent({
-    eventType: 'monitored', entry, evaluation, brokerStatus: evaluation.shouldExit ? 'exit_ready' : 'hold',
-  });
-  await publishEvent(monitored, config);
-  process.stdout.write(`${JSON.stringify({ stage: 'monitored', evaluation }, null, 2)}\n`);
+  let submittedAnyExit = false;
+  for (const entry of portfolio.entries) {
+    const evaluation = evaluateExit({
+      entry,
+      positions: snapshot.positions,
+      quotes: sanitizeQuotes(entry, quoteResponse.data),
+    });
+    const monitored = createPaperExitEvent({
+      eventType: 'monitored', entry, evaluation, brokerStatus: evaluation.shouldExit ? 'exit_ready' : 'hold',
+    });
+    await publishEvent(monitored, config);
+    process.stdout.write(`${JSON.stringify({ stage: 'monitored', symbol: entry.symbol, evaluation }, null, 2)}\n`);
 
-  if (!evaluation.shouldExit) {
-    process.stdout.write('Position held: no fresh, matched deterministic exit trigger is active.\n');
-  } else {
-    const preview = await runPaperExit(entry, evaluation, true, process.env);
-    await publishEvent(preview, config);
-    process.stdout.write(`${JSON.stringify({ stage: 'exit_previewed', event: preview }, null, 2)}\n`);
-
-    if (process.env.VOLGUARD_EXIT_ENABLED !== 'paper') {
-      process.stdout.write('Paper exit submission remains locked. Set VOLGUARD_EXIT_ENABLED=paper for one deliberate run.\n');
+    if (!evaluation.shouldExit) {
+      process.stdout.write(`${entry.symbol} held: no fresh, matched deterministic exit trigger is active.\n`);
     } else {
-      try {
-        const submitted = await runPaperExit(entry, evaluation, false, process.env);
-        await publishEvent(submitted, config);
-        process.stdout.write(`${JSON.stringify({ stage: 'exit_submitted', event: submitted }, null, 2)}\n`);
+      const preview = await runPaperExit(entry, evaluation, true, process.env);
+      await publishEvent(preview, config);
+      process.stdout.write(`${JSON.stringify({ stage: 'exit_previewed', event: preview }, null, 2)}\n`);
 
-        const orders = await runAlpaca<AlpacaOrderResponse[]>([
-          'order', 'list', '--status', 'all', '--nested', '--limit', '100',
-        ], { ...process.env, ALPACA_LIVE_TRADE: 'false' });
-        const brokerOrder = orders.data.find((order) => order.client_order_id === submitted.clientOrderId);
-        if (brokerOrder) {
-          const reconciled = reconcilePaperExitEvent(submitted, entry, brokerOrder);
-          await publishEvent(reconciled, config);
-          process.stdout.write(`${JSON.stringify({ stage: 'exit_reconciled', event: reconciled }, null, 2)}\n`);
+      if (process.env.VOLGUARD_EXIT_ENABLED !== 'paper') {
+        process.stdout.write('Paper exit submission remains locked. Set VOLGUARD_EXIT_ENABLED=paper for one deliberate run.\n');
+      } else {
+        try {
+          const submitted = await runPaperExit(entry, evaluation, false, process.env);
+          submittedAnyExit = true;
+          await publishEvent(submitted, config);
+          process.stdout.write(`${JSON.stringify({ stage: 'exit_submitted', event: submitted }, null, 2)}\n`);
+
+          const orders = await runAlpaca<AlpacaOrderResponse[]>([
+            'order', 'list', '--status', 'all', '--nested', '--limit', '100',
+          ], { ...process.env, ALPACA_LIVE_TRADE: 'false' });
+          const brokerOrder = orders.data.find((order) => order.client_order_id === submitted.clientOrderId);
+          if (brokerOrder) {
+            const reconciled = reconcilePaperExitEvent(submitted, entry, brokerOrder);
+            await publishEvent(reconciled, config);
+            process.stdout.write(`${JSON.stringify({ stage: 'exit_reconciled', event: reconciled }, null, 2)}\n`);
+          }
+        } catch (error) {
+          const rejected = createPaperExitEvent({
+            eventType: 'exit_rejected', entry, evaluation, brokerStatus: 'rejected',
+            message: 'The Alpaca paper exit was rejected; inspect the local runner output before retrying.',
+          });
+          await publishEvent(rejected, config);
+          throw error;
         }
-
-        const postExitSnapshot = await collectAlpacaSnapshot(process.env);
-        await publishTelemetrySnapshot(
-          postExitSnapshot,
-          config.telemetryEndpoint,
-          config.token,
-          config.sitesBypassToken,
-        );
-      } catch (error) {
-        const rejected = createPaperExitEvent({
-          eventType: 'exit_rejected', entry, evaluation, brokerStatus: 'rejected',
-          message: 'The Alpaca paper exit was rejected; inspect the local runner output before retrying.',
-        });
-        await publishEvent(rejected, config);
-        throw error;
       }
     }
+  }
+  if (submittedAnyExit) {
+    const postExitSnapshot = await collectAlpacaSnapshot(process.env);
+    await publishTelemetrySnapshot(postExitSnapshot, config.telemetryEndpoint, config.token, config.sitesBypassToken);
   }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
