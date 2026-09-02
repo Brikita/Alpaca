@@ -1,7 +1,7 @@
 'use client';
+/* eslint-disable @next/next/no-html-link-for-pages -- Vinext hosted navigation requires document-level route changes. */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
 import { runAgentCouncil } from '../lib/agent-council';
@@ -208,17 +208,17 @@ export default function Home() {
     <main className={`app-shell view-${view}`}>
       <a className="skip-link" href="#main-content">Skip to dashboard</a>
       <aside className="sidebar">
-        <Link className="brand" href="/" aria-label="VolGuard home">
+        <a className="brand" href="/" aria-label="VolGuard home">
           <span className="brand-mark">V</span>
           <span>VOLGUARD</span>
-        </Link>
+        </a>
 
         <nav className="nav-list" aria-label="Main navigation">
-          <Link className={`nav-item ${view === 'overview' ? 'active' : ''}`} href="/"><span>◫</span>Overview</Link>
-          <Link className={`nav-item ${view === 'decisions' ? 'active' : ''}`} href="/decisions"><span>⌁</span>Decisions</Link>
-          <Link className={`nav-item ${view === 'positions' ? 'active' : ''}`} href="/positions"><span>◇</span>Positions</Link>
-          <Link className={`nav-item ${view === 'risk' ? 'active' : ''}`} href="/risk"><span>⊘</span>Risk desk</Link>
-          <Link className={`nav-item ${view === 'journal' ? 'active' : ''}`} href="/journal"><span>≡</span>Journal</Link>
+          <a className={`nav-item ${view === 'overview' ? 'active' : ''}`} href="/"><span>◫</span>Overview</a>
+          <a className={`nav-item ${view === 'decisions' ? 'active' : ''}`} href="/decisions"><span>⌁</span>Decisions</a>
+          <a className={`nav-item ${view === 'positions' ? 'active' : ''}`} href="/positions"><span>◇</span>Positions</a>
+          <a className={`nav-item ${view === 'risk' ? 'active' : ''}`} href="/risk"><span>⊘</span>Risk desk</a>
+          <a className={`nav-item ${view === 'journal' ? 'active' : ''}`} href="/journal"><span>≡</span>Journal</a>
         </nav>
 
         <div className="sidebar-foot">
