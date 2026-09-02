@@ -172,7 +172,7 @@
 
 **Status:** Accepted
 
-**Decision:** Implement four named specialist votes from explicit evidence. Require two positive specialist votes and a red-team non-veto, while allowing the catalyst specialist to abstain until an event feed exists. Keep the deterministic twelve-gate governor as the only approval authority.
+**Decision:** Implement four named specialist votes from explicit evidence. Require two positive specialist votes and a red-team non-veto, while allowing the catalyst specialist to abstain until an event feed exists. Keep the deterministic thirteen-gate governor as the only approval authority.
 
 **Reasoning:** An opaque or fabricated “AI consensus” would weaken the audit trail. A transparent council produces useful disagreement today and creates a stable contract for later language-model critiques without giving prose the ability to override risk.
 

@@ -6,7 +6,7 @@ VolGuard is an autonomous, risk-governed options agent for the Alpaca AI Trading
 
 - Judge-facing command-center dashboard
 - Volatility-regime strategy selector
-- Twelve deterministic risk gates
+- Thirteen deterministic risk gates
 - Alpaca CLI boundary with a paper-only assertion and execution lock
 - Sanitized read-only Alpaca account snapshot
 - Real SPY/QQQ/IWM/GLD option intelligence with explicit abstention
@@ -55,7 +55,7 @@ The scanner compares a recent realized-volatility model with the current at-the-
 
 The adapter passes CLI arguments without a shell, forces paper routing in the child process, expects structured JSON, and blocks mutating commands unless the explicit paper execution lock is open.
 
-Monitor the one matched open paper spread:
+Monitor up to two matched open paper strategies:
 
 ```powershell
 npm run monitor:position
@@ -63,7 +63,15 @@ npm run monitor:position
 
 The monitor uses fresh two-sided quotes, verifies that every recorded option leg across up to two strategies still matches the broker positions, and evaluates each lifecycle independently. It records a hold unless that strategy reaches its 50% profit-capture target, 50%-of-debit loss limit, or 3:00 PM ET prior-weekday time exit. Closing submission uses the separate one-process `VOLGUARD_EXIT_ENABLED=paper` lock and reverses only that strategy's legs in one multi-leg order.
 
-The active VolGuard heartbeat runs this monitor every 15 minutes on weekdays. The script still checks the broker market clock and every safety condition, so a scheduled wake-up is not itself permission to trade.
+A Cloudflare Worker dispatches the authenticated GitHub Actions monitor every five minutes on trading weekdays. The script still checks the broker market clock and every safety condition, so a scheduled wake-up is not itself permission to trade.
+
+## Hackathon submission kit
+
+- [One-page write-up](docs/SUBMISSION_WRITEUP.md)
+- [Submission form copy](docs/SUBMISSION_COPY.md)
+- [Demo video script](docs/VIDEO_SCRIPT.md)
+- [Judge presentation deck](docs/VolGuard_Hackathon_Deck.pptx)
+- [Submission-day checklist](docs/SUBMISSION_CHECKLIST.md)
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) before moving the dashboard to Vercel or attaching a portfolio subdomain. The current hosted persistence adapter uses Cloudflare D1 and needs an explicit Vercel storage replacement.
 

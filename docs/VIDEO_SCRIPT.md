@@ -1,0 +1,66 @@
+# VolGuard AI demo video script
+
+Target length: **3 minutes 15 seconds**. Record at 1080p, keep browser zoom at 100%, close unrelated tabs and notifications, and never expose API keys, ingest tokens, or a full account identifier.
+
+## 0:00–0:20 — Open on slide 1
+
+**Narration:**
+
+“Most trading bots are optimized to place trades. VolGuard AI is optimized to deserve them. It is an autonomous, risk-governed options desk built on Alpaca paper trading, and every trade—or decision not to trade—leaves an inspectable evidence trail.”
+
+## 0:20–0:45 — Show the live Overview page
+
+Point to the paper-trading label, fresh account sync, market state, open-strategy count, and timezone selector.
+
+**Narration:**
+
+“This is a fresh one-hundred-thousand-dollar Alpaca competition paper account. The browser receives sanitized account and market state, but never broker credentials. The dashboard is responsive across desktop and phone, and I can review it in East Africa Time, Eastern Time, or UTC.”
+
+## 0:45–1:15 — Show slide 2, then the Decisions page
+
+**Narration:**
+
+“Every cycle scans SPY, QQQ, IWM, and GLD. The signal model compares recent realized movement with the live at-the-money options price, then checks the session, history, paired quotes, liquidity, freshness, and edge. If any check fails, VolGuard records an abstention. No synthetic market signal is substituted.”
+
+Open one decision trace only if current telemetry is visible. Point to exact contracts, council votes, and gate results.
+
+## 1:15–1:45 — Show slide 3
+
+**Narration:**
+
+“A candidate still cannot trade. The constructor chooses exact defined-risk legs and prices buys at the ask and sells at the bid. Four transparent specialists test regime, volatility, catalysts, and failure modes. Then thirteen deterministic gates enforce paper mode, covered shorts, expiry, quote quality, confidence, drawdown, capacity, and the loss budget. The agent can hold at most two strategies, five hundred dollars risk each, and one thousand dollars combined.”
+
+## 1:45–2:15 — Show slide 4, then Positions or Journal
+
+**Narration:**
+
+“Here is the real execution evidence. On September first, VolGuard selected the September fourth GLD 398–391 bear-put spread. The conservative limit was one dollar eighty-two, maximum loss was one hundred eighty-two dollars, and theoretical maximum expiration profit was five hundred eighteen dollars. The Alpaca dry run validated the atomic order, and the paper account filled at one dollar seventy-nine.”
+
+Point to the submitted event, fill, exact broker-leg reconciliation, and most recent HOLD event. Do not describe an unrealized mark as realized profit.
+
+## 2:15–2:40 — Show slide 5 and the Risk page
+
+**Narration:**
+
+“Entry is only half of the system. Every five minutes, a Cloudflare Worker dispatches an authenticated GitHub Actions monitor. It matches each strategy to the broker positions, gets fresh two-sided quotes, and independently applies a fifty-percent profit capture, a fifty-percent debit-loss limit, or a three-P-M Eastern prior-weekday time exit. If reconciliation or evidence fails, the system stops.”
+
+## 2:40–3:05 — Show slide 6 and Journal
+
+**Narration:**
+
+“The Journal keeps scans, abstentions, approvals, submissions, fills, holds, exits, and realized results in one append-only review trail. That makes VolGuard more than a hackathon demo: it is a deliberate-practice tool I can use to build a disciplined trading routine without hiding the system’s mistakes.”
+
+## 3:05–3:15 — Return to closing slide
+
+**Narration:**
+
+“VolGuard is autonomous enough to act, constrained enough to abstain, and transparent enough to improve. That is risk-governed autonomy for options trading.”
+
+## Recording checklist
+
+- Confirm the live site shows current telemetry before recording every app segment.
+- Use the working Sites URL unless a Vercel migration has passed all API and persistence checks.
+- Show the Alpaca paper dashboard briefly only if useful; hide the account ID and all credentials.
+- Keep the real order language precise: “paper order,” “filled at $1.79 average debit,” and “unrealized” for changing marks.
+- Avoid promising profitability. Emphasize decision quality, risk controls, reconciliation, and evidence.
+- Export in MP4/H.264 at 1080p and listen once for clipped audio before uploading.
