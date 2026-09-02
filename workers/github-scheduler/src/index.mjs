@@ -1,6 +1,10 @@
 const GITHUB_API_VERSION = "2022-11-28";
 
-export async function dispatchWorkflow(env, fetchImpl = fetch) {
+export function shouldRunEntry(scheduledTime) {
+  return new Date(scheduledTime).getUTCMinutes() % 10 === 2;
+}
+
+export async function dispatchWorkflow(env, inputs = {}, fetchImpl = fetch) {
   if (!env.GITHUB_TOKEN) {
     throw new Error("GITHUB_TOKEN is not configured");
   }
@@ -23,7 +27,7 @@ export async function dispatchWorkflow(env, fetchImpl = fetch) {
       "User-Agent": "volguard-github-scheduler",
       "X-GitHub-Api-Version": GITHUB_API_VERSION,
     },
-    body: JSON.stringify({ ref: env.GITHUB_REF }),
+    body: JSON.stringify({ ref: env.GITHUB_REF, inputs }),
   });
 
   if (response.status !== 204) {
@@ -35,12 +39,14 @@ export async function dispatchWorkflow(env, fetchImpl = fetch) {
 
 const worker = {
   async scheduled(controller, env) {
-    const result = await dispatchWorkflow(env);
+    const runEntry = shouldRunEntry(controller.scheduledTime);
+    const result = await dispatchWorkflow(env, { run_entry: String(runEntry) });
     console.log(JSON.stringify({
       event: "github_workflow_dispatched",
       scheduledAt: new Date(controller.scheduledTime).toISOString(),
       workflow: env.GITHUB_WORKFLOW,
       ref: env.GITHUB_REF,
+      runEntry,
       status: result.status,
     }));
   },

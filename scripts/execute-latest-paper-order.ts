@@ -15,6 +15,17 @@ import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
 const STARTING_EQUITY = 100_000;
 const MAX_EVIDENCE_AGE_SECONDS = 60;
 
+class PaperExecutionHold extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaperExecutionHold';
+  }
+}
+
+function hold(message: string): never {
+  throw new PaperExecutionHold(message);
+}
+
 function privateHeaders(): Record<string, string> {
   const token = process.env.VOLGUARD_SITES_BYPASS_TOKEN;
   return token ? { 'OAI-Sites-Authorization': `Bearer ${token}` } : {};
@@ -70,7 +81,7 @@ try {
   ]);
   if (!snapshot || !batch) throw new Error('Fresh hosted account and scan evidence are required.');
   if (snapshot.mode !== 'paper') throw new Error('Only the paper account may execute.');
-  if (!snapshot.market.isOpen) throw new Error('Market is closed; no paper order was created.');
+  if (!snapshot.market.isOpen) hold('Market is closed; no paper order was created.');
   if (snapshot.account.status !== 'ACTIVE'
     || snapshot.account.accountBlocked
     || snapshot.account.tradingBlocked
@@ -78,8 +89,8 @@ try {
   ) throw new Error('The paper account is not ready for trading.');
   if (snapshot.account.optionsTradingLevel < 3) throw new Error('Options level 3 is required for multi-leg orders.');
   const portfolio = openPortfolio(events);
-  if (snapshot.openOrders.length > 0) throw new Error('Open broker orders require reconciliation before a new proposal.');
-  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) throw new Error('The two-strategy portfolio is full.');
+  if (snapshot.openOrders.length > 0) hold('Open broker orders require reconciliation before a new proposal.');
+  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) hold('The two-strategy portfolio is full.');
   if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) {
     throw new Error('Broker option legs do not exactly match the VolGuard portfolio ledger.');
   }
@@ -90,13 +101,13 @@ try {
     throw new Error('Account or scan evidence is stale; rerun snapshot and scan immediately before execution.');
   }
   const leader = batch.scans.find((scan) => scan.symbol === batch.leaderSymbol);
-  if (!leader || leader.status !== 'candidate') throw new Error('The fresh scan produced no eligible leader.');
+  if (!leader || leader.status !== 'candidate') hold('The fresh scan produced no eligible leader.');
   if (portfolio.underlyings.has(leader.symbol)) {
-    throw new Error(`A ${leader.symbol} strategy is already open; one position per underlying is enforced.`);
+    hold(`A ${leader.symbol} strategy is already open; one position per underlying is enforced.`);
   }
 
   const construction = constructPosition(leader);
-  if (construction.status === 'blocked') throw new Error(construction.reason);
+  if (construction.status === 'blocked') hold(construction.reason);
   const currentQuoteAge = Math.ceil(construction.position.quoteAgeSeconds + batchAge);
   const position = { ...construction.position, quoteAgeSeconds: currentQuoteAge };
   const votes = runAgentCouncil(leader, position);
@@ -108,7 +119,7 @@ try {
     competitionDrawdown: Math.max(0, STARTING_EQUITY - snapshot.account.equity),
   });
   if (!decision.approved) {
-    throw new Error(`Risk governor blocked the proposal at ${decision.passed}/${decision.total} gates.`);
+    hold(`Risk governor blocked the proposal at ${decision.passed}/${decision.total} gates.`);
   }
 
   const preview = await runPaperOrder(position, batch.capturedAt, votes, decision, true);
@@ -143,6 +154,10 @@ try {
   }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`Paper execution stopped: ${message}\n`);
-  process.exitCode = 1;
+  if (error instanceof PaperExecutionHold) {
+    process.stdout.write(`Paper execution held safely: ${message}\n`);
+  } else {
+    process.stderr.write(`Paper execution stopped: ${message}\n`);
+    process.exitCode = 1;
+  }
 }

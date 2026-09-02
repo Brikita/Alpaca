@@ -43,8 +43,7 @@ button, a { font: inherit; }
 .view-decisions .decision-card,.view-risk .risk-card,.view-journal .history-card,.view-positions .trade-history-card { min-height:calc(100vh - 190px); }
 .view-risk .risk-card { max-width:620px; }
 .view-overview .metrics { margin-bottom:auto; }
-.agent-toggle { padding:8px 10px; color:#e9eee5; background:#262c24; border:1px solid #363e33; border-radius:4px; cursor:pointer; font-size:9px; font-weight:650; }
-.agent-toggle:hover { background:#333b30; }
+.agent-toggle { display:inline-flex; align-items:center; padding:8px 10px; color:#e9eee5; background:#262c24; border:1px solid #363e33; border-radius:4px; cursor:default; font-size:9px; font-weight:650; }
 .metrics { display:grid; grid-template-columns:1.25fr 1fr 1fr .9fr; border:1px solid var(--line); background:var(--panel); }
 .metric { position:relative; min-height:126px; padding:22px 23px 18px; border-left:1px solid var(--line); overflow:hidden; }
 .metric:first-child { border-left:0; }

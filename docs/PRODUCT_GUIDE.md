@@ -96,7 +96,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Safe paper execution, reproducible demonstrations, and testing the complete signal-to-broker workflow.
 
-**Current limitation:** Paper fills can differ from live execution. The runner permits at most two reconciled strategy lifecycles, $500 maximum loss per strategy, $1,000 combined maximum risk, and one strategy per underlying. Any unmatched broker leg or open order blocks another proposal.
+**Current limitation:** Paper fills can differ from live execution. The runner permits at most two reconciled strategy lifecycles, $500 maximum loss per strategy, $1,000 combined maximum risk, and one strategy per underlying. Any unmatched broker leg or open order blocks another proposal. The scheduled entry branch scans every ten minutes during the configured weekday window, but the Alpaca market clock and fresh-candidate checks remain the final session authority.
 
 ### Governed paper-position exits
 

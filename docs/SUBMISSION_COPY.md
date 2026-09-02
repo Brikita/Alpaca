@@ -16,7 +16,7 @@ VolGuard scans live Alpaca options, abstains when evidence is weak, and governs 
 
 VolGuard AI is an autonomous options desk built on Alpaca paper trading. It scans SPY, QQQ, IWM, and GLD; compares realized and implied movement; and records both candidates and abstentions. Exact defined-risk legs are priced conservatively before a four-role specialist council and a thirteen-gate deterministic governor decide whether the proposal may proceed.
 
-Approved entries are validated through the Alpaca CLI as atomic multi-leg dry runs before an explicitly unlocked paper submission. Broker legs are reconciled to an append-only strategy ledger, and an automated five-minute monitor independently applies profit, loss, and pre-expiration time exits to as many as two open strategies. Live routing is prohibited.
+Approved entries are validated through the Alpaca CLI as atomic multi-leg dry runs before an explicitly unlocked paper submission. A Cloudflare-dispatched cycle monitors positions every five minutes and scans for a new fully governed entry every ten minutes. Broker legs are reconciled to an append-only strategy ledger, and the monitor independently applies profit, loss, and pre-expiration time exits to as many as two open strategies. Live routing is prohibited.
 
 The deployed dashboard makes the full reasoning chain inspectable across Decisions, Positions, Risk, and Journal views. Sanitized telemetry is stored in Cloudflare D1, while brokerage credentials remain confined to the paper-only runner. VolGuard demonstrates that a useful trading agent is not merely able to place orders—it can explain its evidence, cap its loss before entry, refuse poor setups, and preserve a reviewable history for deliberate practice.
 

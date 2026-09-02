@@ -63,7 +63,7 @@ npm run monitor:position
 
 The monitor uses fresh two-sided quotes, verifies that every recorded option leg across up to two strategies still matches the broker positions, and evaluates each lifecycle independently. It records a hold unless that strategy reaches its 50% profit-capture target, 50%-of-debit loss limit, or 3:00 PM ET prior-weekday time exit. Closing submission uses the separate one-process `VOLGUARD_EXIT_ENABLED=paper` lock and reverses only that strategy's legs in one multi-leg order.
 
-A Cloudflare Worker dispatches the authenticated GitHub Actions monitor every five minutes on trading weekdays. The script still checks the broker market clock and every safety condition, so a scheduled wake-up is not itself permission to trade.
+A Cloudflare Worker dispatches one authenticated GitHub Actions paper cycle every five minutes on trading weekdays. Every run monitors exits and reconciles broker orders; every other run also refreshes the account, scans SPY/QQQ/IWM/GLD, and attempts one paper entry. The entry branch therefore runs every ten minutes and still requires an open Alpaca market, fresh evidence, available portfolio capacity, an atomic dry run, council approval, and all thirteen risk gates. A scheduled wake-up is never itself permission to trade.
 
 ## Hackathon submission kit
 

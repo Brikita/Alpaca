@@ -283,3 +283,22 @@ The position should not be managed by emotion or a single fluctuating account ma
 ### Verification and remaining work
 
 Forty-four automated tests, TypeScript, lint, and the production build pass. Live routing remains prohibited. The scheduled task still requires the authenticated local host to be available. Exchange-holiday-aware time exits, verified catalyst data, strategy-level grouping, and portfolio-wide maximum-risk aggregation remain.
+
+## 2026-09-02 — Automated opportunity cycle
+
+### What changed
+
+- Expanded the Cloudflare-dispatched GitHub Actions workflow into one serialized paper-trading cycle.
+- Kept broker exit monitoring and reconciliation on every five-minute run.
+- Added a fresh account snapshot, SPY/QQQ/IWM/GLD option scan, governed execution attempt, and post-entry reconciliation every other run—ten minutes between entry scans.
+- Converted normal non-entry outcomes such as market closed, no candidate, open order, portfolio full, duplicate underlying, construction block, or risk block into successful safe holds. Infrastructure, authentication, stale evidence, broker mismatch, account-readiness, and rejected-order failures still fail the workflow visibly.
+
+### Why and routine impact
+
+An autonomous agent must look for new opportunities without a manual rerun, but entry and exit jobs must not race each other. One serialized workflow preserves a single broker authority boundary. The Cloudflare schedule only wakes the process; Alpaca's market clock, fresh evidence, capacity, council, thirteen deterministic gates, atomic dry run, and paper-only execution lock still decide whether an order is allowed.
+
+### Frequency
+
+- Position exits and broker reconciliation: every five minutes during the weekday scheduler window.
+- New-entry account refresh and option scan: every ten minutes during the same window.
+- Outside an open Alpaca session: the scan or execution path records a safe abstention and submits no entry.

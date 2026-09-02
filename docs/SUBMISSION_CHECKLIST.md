@@ -23,6 +23,7 @@ Raw logs are **not listed as a separate required upload** in the supplied event 
 - [ ] VolGuard Journal screenshot showing submission, reconciliation, and monitor events
 - [ ] GitHub Actions run showing a successful automated monitor cycle
 - [ ] Cloudflare Worker trigger/success view showing the five-minute schedule
+- [ ] GitHub Actions evidence showing the ten-minute entry branch and a safe abstention or approved paper entry
 - [ ] Test summary showing the current automated suite passing
 - [ ] Fresh-account evidence showing the $100,000 starting balance
 

@@ -42,7 +42,7 @@ Point to the submitted event, fill, exact broker-leg reconciliation, and most re
 
 **Narration:**
 
-“Entry is only half of the system. Every five minutes, a Cloudflare Worker dispatches an authenticated GitHub Actions monitor. It matches each strategy to the broker positions, gets fresh two-sided quotes, and independently applies a fifty-percent profit capture, a fifty-percent debit-loss limit, or a three-P-M Eastern prior-weekday time exit. If reconciliation or evidence fails, the system stops.”
+“Entry is only half of the system. Every five minutes, a Cloudflare Worker dispatches one authenticated GitHub Actions paper cycle. Every run matches existing strategies to the broker and evaluates their exits. Every other run also refreshes the account and scans for a new position, so entry opportunities are checked every ten minutes. A new paper order still requires an open market, fresh evidence, free capacity, council approval, and all thirteen gates.”
 
 ## 2:40–3:05 — Show slide 6 and Journal
 

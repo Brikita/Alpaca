@@ -103,7 +103,6 @@ export default function Home() {
   const pathname = usePathname();
   const view = pathname.split('/')[1] || 'overview';
   const [traceOpen, setTraceOpen] = useState(false);
-  const [agentRunning, setAgentRunning] = useState(true);
   const [snapshot, setSnapshot] = useState<AlpacaSnapshot | null>(null);
   const [scanBatch, setScanBatch] = useState<OptionScanBatch | null>(null);
   const [decisionHistory, setDecisionHistory] = useState<DecisionHistoryItem[]>([]);
@@ -251,14 +250,7 @@ export default function Home() {
                 <option value="UTC">UTC</option>
               </select>
             </label>
-            <button
-              className="agent-toggle"
-              type="button"
-              aria-pressed={agentRunning}
-              onClick={() => setAgentRunning((running) => !running)}
-            >
-              {agentRunning ? 'Pause agent' : 'Resume agent'}
-            </button>
+            <span className="agent-toggle" aria-label="Cloudflare automation is scheduled">Scheduled</span>
           </div>
         </header>
 
@@ -283,8 +275,8 @@ export default function Home() {
           </article>
           <article className="metric">
             <p>Agent state</p>
-            <h2 className="state"><i className={agentRunning ? '' : 'paused'} />{agentRunning ? 'Scanning' : 'Paused'}</h2>
-            <div className="metric-foot"><small>{agentRunning ? 'Next cycle' : 'Execution lock'}</small><b className="muted">{agentRunning ? '02:14' : 'ON'}</b></div>
+            <h2 className="state"><i />Automated</h2>
+            <div className="metric-foot"><small>Exit / entry cadence</small><b className="muted">5m / 10m</b></div>
           </article>
         </div>
 

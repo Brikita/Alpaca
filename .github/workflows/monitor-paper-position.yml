@@ -1,18 +1,24 @@
-name: Monitor VolGuard paper position
+name: Run VolGuard automated paper cycle
 
 on:
   workflow_dispatch:
+    inputs:
+      run_entry:
+        description: Scan and submit a fresh risk-approved paper entry after monitoring exits
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: volguard-paper-position-monitor
+  group: volguard-paper-trading-broker
   cancel-in-progress: false
 
 jobs:
   monitor:
-    name: Governed paper monitor
+    name: Governed paper cycle
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment: paper-trading
@@ -65,4 +71,22 @@ jobs:
 
       - name: Reconcile existing paper orders
         if: always()
+        run: npm run reconcile:orders
+
+      - name: Refresh the sanitized paper account snapshot
+        if: ${{ inputs.run_entry }}
+        run: npm run snapshot:alpaca
+
+      - name: Scan fresh option opportunities
+        if: ${{ inputs.run_entry }}
+        run: npm run scan:options
+
+      - name: Submit only a fully approved paper entry
+        if: ${{ inputs.run_entry }}
+        env:
+          VOLGUARD_EXECUTION_ENABLED: 'paper'
+        run: npm run execute:latest
+
+      - name: Reconcile the new paper entry
+        if: ${{ always() && inputs.run_entry }}
         run: npm run reconcile:orders
