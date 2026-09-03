@@ -38,3 +38,5 @@ tsconfig.tsbuildinfo
 **/.wrangler/
 /outputs/
 **/work/
+/.tmp/
+*.pptx.inspect.ndjson

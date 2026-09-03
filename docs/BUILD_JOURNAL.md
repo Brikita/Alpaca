@@ -295,7 +295,16 @@ Forty-four automated tests, TypeScript, lint, and the production build pass. Liv
 
 ### Why and routine impact
 
-An autonomous agent must look for new opportunities without a manual rerun, but entry and exit jobs must not race each other. One serialized workflow preserves a single broker authority boundary. The Cloudflare schedule only wakes the process; Alpaca's market clock, fresh evidence, capacity, council, thirteen deterministic gates, atomic dry run, and paper-only execution lock still decide whether an order is allowed.
+An autonomous agent must look for new opportunities without a manual rerun, but entry and exit jobs must not race each other. One serialized workflow preserves a single broker authority boundary. The Cloudflare schedule only wakes the process; Alpaca's market clock, fresh evidence, capacity, council, fourteen deterministic gates, atomic dry run, and paper-only execution lock still decide whether an order is allowed.
+
+## September 3 — Live payoff evidence strengthened the governor
+
+- GLD repeated the same neutral long-volatility thesis in 6/6 open-market scans over 50 minutes.
+- The memory-enabled five-agent council approved the 407/412/417 long iron butterfly, and Alpaca filled the atomic paper order at a $4.55 debit.
+- The next monitor cycle matched all four broker legs and recorded HOLD from fresh quotes.
+- Review of the immutable event showed only $24 theoretical maximum profit against $476 maximum loss.
+- Added a fourteenth payoff-quality gate, a matching Red Team veto, and constructor filtering at a 0.25x minimum reward/risk ratio.
+- The system keeps the historical event unchanged and documents the limitation instead of rewriting or hiding it.
 
 ### Frequency
 

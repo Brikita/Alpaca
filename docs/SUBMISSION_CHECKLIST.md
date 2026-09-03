@@ -40,6 +40,7 @@ Do not publish raw environment files, API keys, bearer tokens, GitHub secrets, f
 - [ ] Navbar and timezone selector work on phone and desktop
 - [ ] Demo makes no live-trading claim and still displays the paper-trading disclaimer
 - [ ] Final deck and video use the same facts and numbers
+- [ ] Every performance screenshot is timestamped and uses actual reconciled data; illustrative scenarios are visibly labeled and never presented as results
 - [ ] Every placeholder in `docs/SUBMISSION_COPY.md` has been replaced in the submission form
 
 ## Deployment decision for today

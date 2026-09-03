@@ -168,6 +168,16 @@
 
 **Trade-off:** The wings cap profit and add complex-order execution and expiration pin risk. The optimizer therefore cannot authorize an order; freshness, portfolio gates, council approval, and a single complex-order preview still remain mandatory.
 
+## ADR-020 — Minimum payoff quality is a hard gate
+
+**Decision:** Require a capped position's theoretical maximum profit to be at least 0.25 times its defined maximum loss. Apply the same rule while constructing wings, in the Red Team vote, and in the deterministic governor.
+
+**Reasoning:** A structure can fit the $500 loss budget yet still offer too little upside to justify its execution risk. The September 3 GLD paper fill exposed this gap with $24 theoretical maximum profit against $476 maximum loss.
+
+**Impact:** Future weak-payoff butterflies and verticals fail before submission. Historical events retain the gate count and policy that existed when they were recorded.
+
+**Trade-off:** The filter reduces trade frequency and does not prove positive expectancy; it only removes obviously asymmetric capped payoffs.
+
 ## ADR-015 — Keep the first council transparent and non-authoritative
 
 **Status:** Accepted

@@ -66,7 +66,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Decide whether to investigate a setup, diagnose stale feeds, and review which filter prevented low-quality trades.
 
-**Current limitation:** These are signal checks, not the thirteen portfolio-risk gates. Passing them only creates a candidate for the next stage.
+**Current limitation:** These are signal checks, not the fourteen portfolio-risk gates. Passing them only creates a candidate for the next stage.
 
 ### Exact position constructor
 
@@ -100,7 +100,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 ### Atomic paper-order execution
 
-**Purpose:** Convert a fresh 13/13-approved position into one Alpaca multi-leg limit order without manually entering individual legs.
+**Purpose:** Convert a fresh 14/14-approved position into one Alpaca multi-leg limit order without manually entering individual legs.
 
 **Strengths:** Always runs the broker dry-run first; uses one idempotent VolGuard client order ID; sends two to four legs atomically with explicit opening intents; uses the conservative net debit as the limit; refuses evidence older than 60 seconds; and requires a deliberate one-run paper unlock. Live routing remains prohibited.
 
@@ -166,7 +166,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Pre-trade review, demonstrations, post-trade analysis, and debugging.
 
-**Current limitation:** The trace shows signal checks, exact legs, council rationales, and all thirteen portfolio-risk gates. Order and exit lifecycle evidence live in the Journal rather than the pre-trade dialog.
+**Current limitation:** The trace shows signal checks, exact legs, council rationales, and all fourteen portfolio-risk gates. Order and exit lifecycle evidence live in the Journal rather than the pre-trade dialog.
 
 ### Decision and trade history
 
