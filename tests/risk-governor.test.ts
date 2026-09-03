@@ -4,7 +4,7 @@ import type { TradeProposal } from '../lib/domain.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
 
 const safeProposal: TradeProposal = {
-  id: 'proposal-1', symbol: 'SPY', strategy: 'iron_condor', maxLoss: 420,
+  id: 'proposal-1', symbol: 'SPY', strategy: 'iron_condor', maxLoss: 420, maxProfit: 210,
   definedRisk: true, nakedShort: false, expiresToday: false, paperAccount: true,
   spreadPct: 0.06, quoteAgeSeconds: 8, correlationSlotsAfter: 1, confidence: 0.76,
   votes: [
@@ -21,7 +21,17 @@ test('approves a proposal that passes every deterministic gate', () => {
     openRisk: 420, openPositions: 1, dailyDrawdown: 180, competitionDrawdown: 0,
   });
   assert.equal(result.approved, true);
-  assert.equal(result.passed, 13);
+  assert.equal(result.passed, 14);
+});
+
+test('blocks a defined-risk structure whose reward is too small for its loss', () => {
+  const result = evaluateProposal(
+    { ...safeProposal, maxLoss: 476, maxProfit: 24 },
+    { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 },
+  );
+  assert.equal(result.approved, false);
+  assert.equal(result.gates.find((item) => item.id === 'payoff-quality')?.passed, false);
+  assert.match(result.gates.find((item) => item.id === 'payoff-quality')?.detail ?? '', /0\.05x/);
 });
 
 test('blocks a trade that breaches per-trade and portfolio limits', () => {
@@ -98,7 +108,8 @@ test('blocks missing, duplicate, unknown, and malformed specialist votes', () =>
 
 test('blocks invalid numeric risk evidence, including negative quote ages', () => {
   const portfolio = { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 };
-  for (const change of [{ maxLoss: -1 }, { maxLoss: 0 }, { maxLoss: NaN }, { quoteAgeSeconds: -1 },
+  for (const change of [{ maxLoss: -1 }, { maxLoss: 0 }, { maxLoss: NaN }, { maxProfit: -1 },
+    { maxProfit: Number.NaN }, { maxProfit: null }, { quoteAgeSeconds: -1 },
     { quoteAgeSeconds: Infinity }, { spreadPct: -0.1 }, { confidence: Infinity }, { confidence: 1.1 },
     { correlationSlotsAfter: 0 }]) {
     assert.equal(evaluateProposal({ ...safeProposal, ...change }, portfolio).approved, false);

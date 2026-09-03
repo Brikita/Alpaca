@@ -98,7 +98,25 @@ test('budgeted structure clears trade risk but remains blocked without council v
   assert.equal(decision.approved, false);
   assert.equal(decision.gates.find((gate) => gate.id === 'trade-risk')?.passed, true);
   assert.equal(decision.gates.find((gate) => gate.id === 'council')?.passed, false);
-  assert.equal(decision.passed, 12);
+  assert.equal(decision.passed, 13);
+});
+
+test('rejects a budget-fitting butterfly when capped reward is below policy quality', () => {
+  const weakPayoffCandidate: OptionScan = {
+    ...budgetedCandidate,
+    modelMovePct: 5,
+    contracts: [
+      { symbol: 'TEST260904P00095000', type: 'put', strike: 95, bid: 1.82, ask: 1.95, mid: 1.885, spreadPct: 0.069, quoteAgeSeconds: 1, volume: 100 },
+      { symbol: 'TEST260904C00100000', type: 'call', strike: 100, bid: 3.8, ask: 4.2, mid: 4, spreadPct: 0.1, quoteAgeSeconds: 1, volume: 500 },
+      { symbol: 'TEST260904P00100000', type: 'put', strike: 100, bid: 3.8, ask: 4.2, mid: 4, spreadPct: 0.1, quoteAgeSeconds: 1, volume: 500 },
+      { symbol: 'TEST260904C00105000', type: 'call', strike: 105, bid: 1.82, ask: 1.95, mid: 1.885, spreadPct: 0.069, quoteAgeSeconds: 1, volume: 100 },
+    ],
+  };
+  const result = constructPosition(weakPayoffCandidate);
+  assert.equal(result.status, 'constructed');
+  if (result.status !== 'constructed') return;
+  assert.equal(result.position.strategy, 'long_straddle');
+  assert.equal(result.position.maxLoss, 800);
 });
 
 test('constructs a conservative bear put spread within the risk budget', () => {

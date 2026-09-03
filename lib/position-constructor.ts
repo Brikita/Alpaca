@@ -68,6 +68,12 @@ function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function payoffQualityPasses(maxProfit: number, maxLoss: number): boolean {
+  return maxLoss > 0
+    && maxProfit > 0
+    && maxProfit / maxLoss >= DEFAULT_RISK_POLICY.minRewardRiskRatio;
+}
+
 function validWing(contract: OptionContractQuote): boolean {
   return contract.bid > 0
     && contract.ask >= contract.bid
@@ -110,7 +116,7 @@ function optimizeLongStraddle(
       const maxLoss = roundCurrency(netDebit * 100);
       const narrowWidth = Math.min(callWidth, putWidth) * quantity;
       const maxProfit = roundCurrency((narrowWidth - netDebit) * 100);
-      if (maxLoss > riskBudget || maxProfit <= 0) continue;
+      if (maxLoss > riskBudget || !payoffQualityPasses(maxProfit, maxLoss)) continue;
       combinations.push({
         callWing,
         putWing,
@@ -235,7 +241,7 @@ function optimizeDirectionalSpread(
     if (netDebit <= 0) continue;
     const maxLoss = roundCurrency(netDebit * 100);
     const maxProfit = roundCurrency((width * quantity - netDebit) * 100);
-    if (maxLoss > riskBudget || maxProfit <= 0) continue;
+    if (maxLoss > riskBudget || !payoffQualityPasses(maxProfit, maxLoss)) continue;
     combinations.push({
       wing,
       netDebit,
@@ -325,6 +331,7 @@ export function toTradeProposal(
     symbol: position.symbol,
     strategy: position.strategy,
     maxLoss: position.maxLoss,
+    maxProfit: position.maxProfit,
     definedRisk: position.definedRisk,
     nakedShort: position.nakedShort,
     expiresToday: position.expiresToday,

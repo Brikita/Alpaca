@@ -72,7 +72,7 @@ test('allows the governor to approve only when council evidence and memory confi
     openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, true);
-  assert.equal(decision.passed, 13);
+  assert.equal(decision.passed, 14);
   assert.equal(isPaperOrderEvent(createPaperOrderEvent({
     eventType: 'previewed', capturedAt: scan.capturedAt, position, votes, decision,
     brokerStatus: 'previewed', message: 'Validated end to end',
@@ -97,6 +97,11 @@ test('fails closed when the current setup lacks memory confirmation', () => {
 
 test('red team vetoes an oversized position', () => {
   const votes = runAgentCouncil(scan, { ...position, maxLoss: 501 });
+  assert.equal(votes.find((vote) => vote.agent === 'red_team')?.approved, false);
+});
+
+test('red team vetoes a capped structure with inadequate reward for its risk', () => {
+  const votes = runAgentCouncil(scan, { ...position, maxLoss: 476, maxProfit: 24 });
   assert.equal(votes.find((vote) => vote.agent === 'red_team')?.approved, false);
 });
 

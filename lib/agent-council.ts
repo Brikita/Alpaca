@@ -44,6 +44,7 @@ export function runAgentCouncil(
     && position.maxLoss <= DEFAULT_RISK_POLICY.maxLossPerTrade
     && position.maxProfit !== null
     && position.maxProfit > 0
+    && position.maxProfit / position.maxLoss >= DEFAULT_RISK_POLICY.minRewardRiskRatio
     && position.legs.length >= 2
     && position.legs.some((leg) => leg.side === 'buy')
     && position.legs.every((leg) => leg.quantity === position.quantity);
@@ -84,8 +85,8 @@ export function runAgentCouncil(
       approved: redTeamApproved,
       confidence: redTeamApproved ? Math.min(scan.confidence, 0.85) : 1,
       rationale: redTeamApproved
-        ? `No veto: every short leg is covered and maximum loss is $${position.maxLoss}.`
-        : 'Veto: structure, expiry, payoff, quantity, or maximum-loss evidence failed.',
+        ? `No veto: every short leg is covered, maximum loss is $${position.maxLoss}, and reward/risk is at least ${DEFAULT_RISK_POLICY.minRewardRiskRatio.toFixed(2)}x.`
+        : 'Veto: structure, expiry, payoff quality, quantity, or maximum-loss evidence failed.',
     },
   ];
 }

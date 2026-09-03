@@ -30,6 +30,7 @@ export interface TradeProposal {
   symbol: string;
   strategy: Exclude<Strategy, 'abstain'>;
   maxLoss: number;
+  maxProfit: number | null;
   definedRisk: boolean;
   nakedShort: boolean;
   expiresToday: boolean;
@@ -50,6 +51,7 @@ export interface PortfolioSnapshot {
 
 export interface RiskPolicy {
   maxLossPerTrade: number;
+  minRewardRiskRatio: number;
   maxOpenRisk: number;
   maxOpenPositions: number;
   maxDailyDrawdown: number;
@@ -76,6 +78,7 @@ export interface RiskDecision {
 
 export const DEFAULT_RISK_POLICY: RiskPolicy = {
   maxLossPerTrade: 500,
+  minRewardRiskRatio: 0.25,
   maxOpenRisk: 1_000,
   maxOpenPositions: 2,
   maxDailyDrawdown: 1_500,

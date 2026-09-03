@@ -33,6 +33,10 @@ export function evaluateProposal(
   const blockedAgents = completeCouncil
     ? REQUIRED_AGENT_NAMES.filter((agent) => voteByAgent.get(agent)?.approved !== true)
     : REQUIRED_AGENT_NAMES;
+  const rewardRiskRatio = nonnegative(proposal.maxLoss) && proposal.maxLoss > 0
+    && typeof proposal.maxProfit === 'number' && Number.isFinite(proposal.maxProfit)
+    ? proposal.maxProfit / proposal.maxLoss
+    : null;
 
   const gates: GateResult[] = [
     gate('paper', 'Paper account only', proposal.paperAccount, proposal.paperAccount ? 'Paper mode verified' : 'Live account blocked'),
@@ -40,6 +44,14 @@ export function evaluateProposal(
     gate('naked-short', 'No naked short legs', !proposal.nakedShort, proposal.nakedShort ? 'Naked short detected' : 'Every short leg is covered'),
     gate('expiry', 'Not expiring today', !proposal.expiresToday, proposal.expiresToday ? 'Same-day expiry blocked' : 'Expiry window accepted'),
     gate('trade-risk', 'Per-trade risk', nonnegative(proposal.maxLoss) && proposal.maxLoss > 0 && proposal.maxLoss <= policy.maxLossPerTrade, `$${proposal.maxLoss} / $${policy.maxLossPerTrade}`),
+    gate(
+      'payoff-quality',
+      'Minimum reward / risk',
+      rewardRiskRatio !== null && rewardRiskRatio >= policy.minRewardRiskRatio,
+      rewardRiskRatio === null
+        ? `Finite maximum profit required · ${policy.minRewardRiskRatio.toFixed(2)}x minimum`
+        : `${rewardRiskRatio.toFixed(2)}x / ${policy.minRewardRiskRatio.toFixed(2)}x minimum`,
+    ),
     gate('portfolio-risk', 'Portfolio risk', nonnegative(portfolio.openRisk) && portfolio.openRisk + proposal.maxLoss <= policy.maxOpenRisk, `$${portfolio.openRisk + proposal.maxLoss} / $${policy.maxOpenRisk}`),
     gate('position-capacity', 'Strategy capacity', Number.isInteger(portfolio.openPositions) && portfolio.openPositions >= 0 && portfolio.openPositions + 1 <= policy.maxOpenPositions, `${portfolio.openPositions + 1} / ${policy.maxOpenPositions} positions`),
     gate('daily-drawdown', 'Daily drawdown', nonnegative(portfolio.dailyDrawdown) && portfolio.dailyDrawdown <= policy.maxDailyDrawdown, `$${portfolio.dailyDrawdown} / $${policy.maxDailyDrawdown}`),
