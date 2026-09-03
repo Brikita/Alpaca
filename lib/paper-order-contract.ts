@@ -1,4 +1,5 @@
 import type { PaperOrderEvent } from './paper-order.ts';
+import { isCompleteAgentVoteSet } from './agent-votes.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -42,7 +43,7 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
     && ['buy_to_open', 'sell_to_open', 'buy_to_close', 'sell_to_close'].includes(String(leg.positionIntent))
     && leg.ratioQuantity === 1
   )) return false;
-  if (!Array.isArray(value.councilVotes) || value.councilVotes.length !== 4) return false;
+  if (!isCompleteAgentVoteSet(value.councilVotes)) return false;
   if (!isRecord(value.riskDecision)
     || value.riskDecision.approved !== true
     || value.riskDecision.passed !== value.riskDecision.total

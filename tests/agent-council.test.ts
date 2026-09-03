@@ -7,6 +7,8 @@ import type { ConstructedPosition } from '../lib/position-constructor.ts';
 import { toTradeProposal } from '../lib/position-constructor.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
 import type { DecisionMemory } from '../lib/decision-memory.ts';
+import { createPaperOrderEvent } from '../lib/paper-order.ts';
+import { isPaperOrderEvent } from '../lib/paper-order-contract.ts';
 
 const scan: OptionScan = {
   symbol: 'GLD', capturedAt: '2026-09-01T13:33:12.747Z', expiration: '2026-09-04',
@@ -65,11 +67,16 @@ test('produces five named, auditable votes without inventing specialist clearanc
 });
 
 test('allows the governor to approve only when council evidence and memory confirmation pass', () => {
-  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position, clearCatalyst, confirmedMemory)), {
+  const votes = runAgentCouncil(scan, position, clearCatalyst, confirmedMemory);
+  const decision = evaluateProposal(toTradeProposal(position, votes), {
     openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, true);
   assert.equal(decision.passed, 13);
+  assert.equal(isPaperOrderEvent(createPaperOrderEvent({
+    eventType: 'previewed', capturedAt: scan.capturedAt, position, votes, decision,
+    brokerStatus: 'previewed', message: 'Validated end to end',
+  })), true);
 });
 
 test('fails closed when verified catalyst evidence is unavailable', () => {

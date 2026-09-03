@@ -31,7 +31,8 @@ const position: ConstructedPosition = {
 const votes: AgentVote[] = [
   { agent: 'regime', approved: true, confidence: 0.75, rationale: 'Aligned' },
   { agent: 'volatility', approved: true, confidence: 0.75, rationale: 'Edge' },
-  { agent: 'catalyst', approved: false, confidence: 0, rationale: 'No feed' },
+  { agent: 'catalyst', approved: true, confidence: 0.75, rationale: 'Clear' },
+  { agent: 'memory', approved: true, confidence: 1, rationale: 'Confirmed' },
   { agent: 'red_team', approved: true, confidence: 0.75, rationale: 'No veto' },
 ];
 const decision: RiskDecision = {
@@ -68,6 +69,22 @@ test('creates a sanitized, idempotent event without a broker order id', () => {
   assert.equal(event.eventKey, `${event.clientOrderId}:previewed`);
   assert.equal(isPaperOrderEvent(event), true);
   assert.equal(JSON.stringify(event).includes('broker-order-id'), false);
+});
+
+test('rejects incomplete, duplicate, or malformed specialist vote sets', () => {
+  const event = createPaperOrderEvent({
+    eventType: 'previewed', capturedAt: '2026-09-01T13:33:12.747Z',
+    position, votes, decision, brokerStatus: 'previewed', message: 'Validated',
+  });
+  assert.equal(isPaperOrderEvent({ ...event, councilVotes: votes.slice(0, 4) }), false);
+  assert.equal(isPaperOrderEvent({
+    ...event,
+    councilVotes: votes.map((vote, index) => index === 4 ? { ...vote, agent: 'memory' } : vote),
+  }), false);
+  assert.equal(isPaperOrderEvent({
+    ...event,
+    councilVotes: votes.map((vote, index) => index === 0 ? { ...vote, confidence: Number.NaN } : vote),
+  }), false);
 });
 
 test('creates a separate reconciled fill event from a sanitized client id', () => {
