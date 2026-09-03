@@ -13,9 +13,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function isCompleteAgentVoteSet(value: unknown): value is AgentVote[] {
-  if (!Array.isArray(value) || value.length !== REQUIRED_AGENT_NAMES.length) return false;
+  return isAgentVoteSet(value, REQUIRED_AGENT_NAMES);
+}
 
-  const required = new Set<string>(REQUIRED_AGENT_NAMES);
+// Historical evidence stays historical: never fabricate a Memory vote for an old trade.
+export function isLegacyAgentVoteSet(value: unknown): value is AgentVote[] {
+  return isAgentVoteSet(value, ['regime', 'volatility', 'catalyst', 'red_team']);
+}
+
+function isAgentVoteSet(value: unknown, names: readonly string[]): value is AgentVote[] {
+  if (!Array.isArray(value) || value.length !== names.length) return false;
+
+  const required = new Set<string>(names);
   const agents = new Set<string>();
   for (const vote of value) {
     if (!isRecord(vote)
@@ -34,5 +43,5 @@ export function isCompleteAgentVoteSet(value: unknown): value is AgentVote[] {
     agents.add(vote.agent);
   }
 
-  return REQUIRED_AGENT_NAMES.every((agent) => agents.has(agent));
+  return names.every((agent) => agents.has(agent));
 }

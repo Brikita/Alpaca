@@ -1,5 +1,5 @@
 import type { PaperOrderEvent } from './paper-order.ts';
-import { isCompleteAgentVoteSet } from './agent-votes.ts';
+import { isCompleteAgentVoteSet, isLegacyAgentVoteSet } from './agent-votes.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -12,7 +12,7 @@ function finite(value: unknown): value is number {
 export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
   if (!isRecord(value)) return false;
   if (
-    value.schemaVersion !== 1
+    (value.schemaVersion !== 1 && value.schemaVersion !== 2)
     || value.source !== 'volguard-runner'
     || value.mode !== 'paper'
     || typeof value.eventKey !== 'string'
@@ -43,14 +43,20 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
     && ['buy_to_open', 'sell_to_open', 'buy_to_close', 'sell_to_close'].includes(String(leg.positionIntent))
     && leg.ratioQuantity === 1
   )) return false;
-  if (!isCompleteAgentVoteSet(value.councilVotes)) return false;
+  const isExitEvent = ['monitored', 'exit_previewed', 'exit_submitted', 'exit_rejected', 'exit_reconciled']
+    .includes(String(value.eventType));
+  const isMaintenanceEvent = isExitEvent || value.eventType === 'reconciled';
+  if (value.schemaVersion === 1) {
+    // Only lifecycle maintenance may ingest legacy evidence; new entries use v2.
+    if (!isMaintenanceEvent
+      || !(isLegacyAgentVoteSet(value.councilVotes) || isCompleteAgentVoteSet(value.councilVotes))
+    ) return false;
+  } else if (!isCompleteAgentVoteSet(value.councilVotes)) return false;
   if (!isRecord(value.riskDecision)
     || value.riskDecision.approved !== true
     || value.riskDecision.passed !== value.riskDecision.total
     || !Array.isArray(value.riskDecision.gates)
   ) return false;
-  const isExitEvent = ['monitored', 'exit_previewed', 'exit_submitted', 'exit_rejected', 'exit_reconciled']
-    .includes(String(value.eventType));
   if (isExitEvent) {
     if (!isRecord(value.exit)
       || typeof value.exit.entryClientOrderId !== 'string'

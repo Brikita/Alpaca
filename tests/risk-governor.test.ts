@@ -64,5 +64,34 @@ test('blocks the proposal when recent analysis does not confirm the setup', () =
     { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 },
   );
   assert.equal(result.approved, false);
-  assert.match(result.gates.find((item) => item.id === 'council')?.detail ?? '', /memory blocked/);
+  assert.match(result.gates.find((item) => item.id === 'council')?.detail ?? '', /blocked: memory/);
+});
+
+for (const agent of ['regime', 'volatility'] as const) {
+  test(`blocks the proposal when the ${agent} specialist rejects it`, () => {
+    const votes = safeProposal.votes.map((vote) => vote.agent === agent
+      ? { ...vote, approved: false, rationale: `${agent} rejected` }
+      : vote);
+    const result = evaluateProposal(
+      { ...safeProposal, votes },
+      { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 },
+    );
+    assert.equal(result.approved, false);
+    assert.match(result.gates.find((item) => item.id === 'council')?.detail ?? '', new RegExp(`blocked: ${agent}`));
+  });
+}
+
+test('blocks missing, duplicate, unknown, and malformed specialist votes', () => {
+  const portfolio = { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 };
+  const malformedVoteSets = [
+    safeProposal.votes.slice(0, 4),
+    safeProposal.votes.map((vote, index) => index === 4 ? { ...vote, agent: 'memory' as const } : vote),
+    safeProposal.votes.map((vote, index) => index === 0 ? { ...vote, agent: 'unknown' as never } : vote),
+    safeProposal.votes.map((vote, index) => index === 0 ? { ...vote, confidence: Number.NaN } : vote),
+  ];
+  for (const votes of malformedVoteSets) {
+    const result = evaluateProposal({ ...safeProposal, votes }, portfolio);
+    assert.equal(result.approved, false);
+    assert.match(result.gates.find((item) => item.id === 'council')?.detail ?? '', /Invalid specialist set/);
+  }
 });

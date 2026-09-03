@@ -58,7 +58,6 @@ export interface RiskPolicy {
   maxSpreadPct: number;
   maxQuoteAgeSeconds: number;
   minConfidence: number;
-  minAgentApprovals: number;
 }
 
 export interface GateResult {
@@ -85,5 +84,4 @@ export const DEFAULT_RISK_POLICY: RiskPolicy = {
   maxSpreadPct: 0.12,
   maxQuoteAgeSeconds: 60,
   minConfidence: 0.65,
-  minAgentApprovals: 2,
 };

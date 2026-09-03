@@ -67,6 +67,7 @@ test('creates a sanitized, idempotent event without a broker order id', () => {
     position, votes, decision, brokerStatus: 'previewed', message: 'Validated',
   });
   assert.equal(event.eventKey, `${event.clientOrderId}:previewed`);
+  assert.equal(event.schemaVersion, 2);
   assert.equal(isPaperOrderEvent(event), true);
   assert.equal(JSON.stringify(event).includes('broker-order-id'), false);
 });

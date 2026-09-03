@@ -92,7 +92,7 @@ test('fails closed when the current setup lacks memory confirmation', () => {
     openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, false);
-  assert.match(decision.gates.find((gate) => gate.id === 'council')?.detail ?? '', /memory blocked/);
+  assert.match(decision.gates.find((gate) => gate.id === 'council')?.detail ?? '', /blocked: memory/);
 });
 
 test('red team vetoes an oversized position', () => {

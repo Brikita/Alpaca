@@ -6,6 +6,7 @@ import {
   type RiskPolicy,
   type TradeProposal,
 } from './domain.ts';
+import { isCompleteAgentVoteSet, REQUIRED_AGENT_NAMES } from './agent-votes.ts';
 
 function gate(id: string, label: string, passed: boolean, detail: string): GateResult {
   return { id, label, passed, detail };
@@ -16,12 +17,17 @@ export function evaluateProposal(
   portfolio: PortfolioSnapshot,
   policy: RiskPolicy = DEFAULT_RISK_POLICY,
 ): RiskDecision {
-  const approvals = proposal.votes.filter(
-    (vote) => vote.agent !== 'red_team' && vote.approved,
-  ).length;
-  const redTeam = proposal.votes.find((vote) => vote.agent === 'red_team');
-  const catalyst = proposal.votes.find((vote) => vote.agent === 'catalyst');
-  const memory = proposal.votes.find((vote) => vote.agent === 'memory');
+  const completeCouncil = isCompleteAgentVoteSet(proposal.votes);
+  const voteByAgent = new Map(completeCouncil ? proposal.votes.map((vote) => [vote.agent, vote]) : []);
+  const approvedAgents = completeCouncil
+    ? REQUIRED_AGENT_NAMES.filter((agent) => voteByAgent.get(agent)?.approved === true)
+    : [];
+  const councilApproved = completeCouncil
+    && approvedAgents.length === REQUIRED_AGENT_NAMES.length
+    && proposal.confidence >= policy.minConfidence;
+  const blockedAgents = completeCouncil
+    ? REQUIRED_AGENT_NAMES.filter((agent) => voteByAgent.get(agent)?.approved !== true)
+    : REQUIRED_AGENT_NAMES;
 
   const gates: GateResult[] = [
     gate('paper', 'Paper account only', proposal.paperAccount, proposal.paperAccount ? 'Paper mode verified' : 'Live account blocked'),
@@ -36,7 +42,14 @@ export function evaluateProposal(
     gate('correlation', 'Correlation capacity', proposal.correlationSlotsAfter <= policy.maxCorrelatedPositions, `${proposal.correlationSlotsAfter} / ${policy.maxCorrelatedPositions} slots`),
     gate('spread', 'Bid-ask spread', proposal.spreadPct <= policy.maxSpreadPct, `${Math.round(proposal.spreadPct * 100)}% / ${Math.round(policy.maxSpreadPct * 100)}%`),
     gate('quote-age', 'Quote freshness', proposal.quoteAgeSeconds <= policy.maxQuoteAgeSeconds, `${proposal.quoteAgeSeconds}s / ${policy.maxQuoteAgeSeconds}s`),
-    gate('council', 'Agent council', approvals >= policy.minAgentApprovals && Boolean(catalyst?.approved) && Boolean(memory?.approved) && Boolean(redTeam?.approved) && proposal.confidence >= policy.minConfidence, `${approvals} approvals · catalyst ${catalyst?.approved ? 'clear' : 'blocked'} · memory ${memory?.approved ? 'confirmed' : 'blocked'} · ${Math.round(proposal.confidence * 100)}% confidence`),
+    gate(
+      'council',
+      'Agent council',
+      councilApproved,
+      completeCouncil
+        ? `${approvedAgents.length}/${REQUIRED_AGENT_NAMES.length} required specialists approved${blockedAgents.length ? ` · blocked: ${blockedAgents.join(', ')}` : ''} · ${Math.round(proposal.confidence * 100)}% signal score`
+        : `Invalid specialist set · required: ${REQUIRED_AGENT_NAMES.join(', ')}`,
+    ),
   ];
 
   const passed = gates.filter((item) => item.passed).length;

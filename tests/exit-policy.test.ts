@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SafePosition } from '../lib/alpaca-snapshot.ts';
 import { evaluateExit, timeExitAt, type OptionQuote } from '../lib/exit-policy.ts';
-import type { PaperOrderEvent } from '../lib/paper-order.ts';
+import { createPaperExitEvent, reconcilePaperOrderEvent, type PaperOrderEvent } from '../lib/paper-order.ts';
+import { isPaperOrderEvent } from '../lib/paper-order-contract.ts';
 import type { MarketCalendarSession } from '../lib/market-calendar.ts';
 
 const entry: PaperOrderEvent = {
@@ -18,7 +19,7 @@ const entry: PaperOrderEvent = {
   councilVotes: [
     { agent: 'regime', approved: true, confidence: 0.8, rationale: 'Aligned' },
     { agent: 'volatility', approved: true, confidence: 0.8, rationale: 'Edge' },
-    { agent: 'catalyst', approved: false, confidence: 0, rationale: 'No feed' },
+    { agent: 'catalyst', approved: false, confidence: 0.4, rationale: 'Historical entry: no verified feed' },
     { agent: 'red_team', approved: true, confidence: 0.8, rationale: 'No veto' },
   ],
   riskDecision: { approved: true, passed: 1, total: 1, gates: [{ id: 'all', label: 'All', passed: true, detail: 'Passed' }] },
@@ -59,6 +60,26 @@ test('holds while profit, loss, and time thresholds remain untouched', () => {
   assert.equal(result.lossLimit, 89.5);
   assert.equal(result.reason, 'hold');
   assert.equal(result.shouldExit, false);
+});
+
+test('preserves four-vote historical evidence for monitoring, closing, and reconciliation only', () => {
+  const evaluation = evaluateExit({
+    entry, positions, quotes: quotes(5.5, 1), now: '2026-09-01T16:37:45.000Z',
+  });
+  for (const eventType of ['monitored', 'exit_previewed', 'exit_submitted', 'exit_rejected'] as const) {
+    const event = createPaperExitEvent({ eventType, entry, evaluation, brokerStatus: 'accepted' });
+    assert.equal(event.schemaVersion, 1);
+    assert.deepEqual(event.councilVotes, entry.councilVotes);
+    assert.equal(event.councilVotes.some((vote) => vote.agent === 'memory'), false);
+    assert.equal(isPaperOrderEvent(event), true);
+  }
+  assert.equal(isPaperOrderEvent(reconcilePaperOrderEvent(entry, {
+    status: 'filled', filled_qty: '1', filled_avg_price: '1.79',
+  })), true);
+  for (const eventType of ['previewed', 'submitted', 'rejected']) {
+    assert.equal(isPaperOrderEvent({ ...entry, eventType }), false);
+  }
+  assert.equal(isPaperOrderEvent({ ...entry, schemaVersion: 2 }), false);
 });
 
 test('approves a fresh matched spread when the profit target is reached', () => {

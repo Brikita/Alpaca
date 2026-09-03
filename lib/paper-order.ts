@@ -31,7 +31,7 @@ export interface PaperExitEvidence {
 }
 
 export interface PaperOrderEvent {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   source: 'volguard-runner';
   mode: 'paper';
   eventKey: string;
@@ -283,7 +283,7 @@ export function createPaperOrderEvent(input: {
 }): PaperOrderEvent {
   const clientOrderId = paperClientOrderId(input.position, input.capturedAt);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: 'volguard-runner',
     mode: 'paper',
     eventKey: `${clientOrderId}:${input.eventType}`,
