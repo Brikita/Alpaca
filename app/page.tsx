@@ -15,19 +15,11 @@ import { MAX_OPEN_STRATEGIES, openPortfolio } from '../lib/portfolio-positions';
 import type { TradePerformance } from '../lib/performance-analytics';
 import type { StrategyReplay } from '../lib/replay';
 import type { DecisionMemory } from '../lib/decision-memory';
+import { automationLabel, parseAutomationStatus, type AutomationStatus } from '../lib/automation-control';
+import { evidenceAgeSeconds } from '../lib/evidence-time';
+import { readDashboardJson } from '../lib/dashboard-data';
 
-const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
 const STARTING_EQUITY = 100_000;
-
-interface AutomationStatus {
-  paused: boolean;
-  reason: string;
-  updatedAt: string | null;
-  exitCadenceMinutes: number;
-  entryCadenceMinutes: number;
-  dispatchWindow: string;
-  dispatchEligibleNow: boolean;
-}
 
 function money(value: number, digits = 2): string {
   return new Intl.NumberFormat('en-US', {
@@ -52,13 +44,14 @@ const TIME_ZONES = {
 type TimeZoneLabel = keyof typeof TIME_ZONES;
 
 function timeLabel(value: string | null | undefined, timeZone: string): string {
-  if (!value) return '—';
+  if (!value || !Number.isFinite(Date.parse(value))) return '—';
   return new Intl.DateTimeFormat('en-US', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone, hour12: false,
   }).format(new Date(value));
 }
 
 function historyTimeLabel(value: string, timeZone: string): string {
+  if (!Number.isFinite(Date.parse(value))) return 'Unverified time';
   return new Intl.DateTimeFormat('en-US', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     timeZone, hour12: false,
@@ -67,7 +60,8 @@ function historyTimeLabel(value: string, timeZone: string): string {
 
 function ageLabel(value: string | undefined): string {
   if (!value) return 'never';
-  const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  const seconds = Math.ceil(evidenceAgeSeconds(value));
+  if (!Number.isFinite(seconds)) return 'unverified time';
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   return `${Math.floor(seconds / 3600)}h ago`;
@@ -127,6 +121,7 @@ export default function Home() {
   const [replay, setReplay] = useState<StrategyReplay | null>(null);
   const [memories, setMemories] = useState<DecisionMemory[]>([]);
   const [timeZoneLabel, setTimeZoneLabel] = useState<TimeZoneLabel>('EAT');
+  const [refreshedAt, setRefreshedAt] = useState(0);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('volguard-time-zone');
@@ -143,47 +138,29 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     async function refreshDashboard() {
-      try {
-        const [telemetryResponse, scanResponse, historyResponse, automationResponse, performanceResponse, memoryResponse] = await Promise.all([
-          fetch('/api/telemetry', { cache: 'no-store' }),
-          fetch('/api/scans', { cache: 'no-store' }),
-          fetch('/api/history', { cache: 'no-store' }),
-          fetch('/api/automation', { cache: 'no-store' }),
-          fetch('/api/performance', { cache: 'no-store' }),
-          fetch('/api/memory', { cache: 'no-store' }),
+        const [telemetryPayload, scanPayload, historyPayload, automationPayload, performancePayload, memoryPayload] = await Promise.all([
+          readDashboardJson<{ snapshot: AlpacaSnapshot | null }>('/api/telemetry'),
+          readDashboardJson<{ batch: OptionScanBatch | null }>('/api/scans'),
+          readDashboardJson<{ decisions: DecisionHistoryItem[]; trades: PaperOrderEvent[] }>('/api/history'),
+          readDashboardJson<unknown>('/api/automation'),
+          readDashboardJson<{ actual: TradePerformance; replay: StrategyReplay | null }>('/api/performance'),
+          readDashboardJson<{ memories: DecisionMemory[] }>('/api/memory'),
         ]);
-        if (!telemetryResponse.ok || !scanResponse.ok) throw new Error('Dashboard data unavailable');
-        const telemetryPayload = (await telemetryResponse.json()) as { snapshot: AlpacaSnapshot | null };
-        const scanPayload = (await scanResponse.json()) as { batch: OptionScanBatch | null };
-        const historyPayload = historyResponse.ok
-          ? (await historyResponse.json()) as { decisions: DecisionHistoryItem[]; trades: PaperOrderEvent[] }
-          : { decisions: [], trades: [] };
-        const automationPayload = automationResponse.ok
-          ? await automationResponse.json() as AutomationStatus
-          : null;
-        const performancePayload = performanceResponse.ok
-          ? await performanceResponse.json() as { actual: TradePerformance; replay: StrategyReplay | null }
-          : null;
-        const memoryPayload = memoryResponse.ok
-          ? await memoryResponse.json() as { memories: DecisionMemory[] }
-          : { memories: [] };
         if (active) {
-          setSnapshot(telemetryPayload.snapshot);
-          setScanBatch(scanPayload.batch);
-          if (historyResponse.ok) {
+          setRefreshedAt(Date.now());
+          setSnapshot(telemetryPayload?.snapshot ?? null);
+          setScanBatch(scanPayload?.batch ?? null);
+          if (historyPayload) {
             setDecisionHistory(historyPayload.decisions);
             setTradeHistory(historyPayload.trades);
           }
-          setTelemetryError(false);
-          setHistoryError(!historyResponse.ok);
-          setAutomation(automationPayload);
+          setTelemetryError(!telemetryPayload || !scanPayload);
+          setHistoryError(!historyPayload);
+          setAutomation(parseAutomationStatus(automationPayload));
           setPerformance(performancePayload?.actual ?? null);
           setReplay(performancePayload?.replay ?? null);
-          setMemories(memoryPayload.memories);
+          setMemories(memoryPayload?.memories ?? []);
         }
-      } catch {
-        if (active) setTelemetryError(true);
-      }
     }
     void refreshDashboard();
     const timer = window.setInterval(refreshDashboard, 30_000);
@@ -200,8 +177,13 @@ export default function Home() {
   const dailyDrawdownPct = snapshot?.account.previousEquity
     ? (dailyDrawdown / snapshot.account.previousEquity) * 100
     : 0;
+  const accountFresh = Boolean(snapshot && evidenceAgeSeconds(snapshot.capturedAt, refreshedAt) <= 60);
+  const scanFresh = Boolean(scanBatch && evidenceAgeSeconds(scanBatch.capturedAt, refreshedAt) <= 60);
+  const controlLabel = automationLabel(automation, refreshedAt);
+  const controlClass = controlLabel === 'All halted' || controlLabel === 'Entries paused' ? 'paused' : controlLabel === 'Scheduled' ? '' : 'off-hours';
   const accountReady = Boolean(
-    snapshot && snapshot.account.status === 'ACTIVE' && !snapshot.account.accountBlocked && !snapshot.account.tradingBlocked,
+    accountFresh && snapshot && snapshot.account.status === 'ACTIVE'
+      && !snapshot.account.accountBlocked && !snapshot.account.tradingBlocked && !snapshot.account.suspendedByUser,
   );
   const leader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
   const passedSignalChecks = leader?.checks.filter((check) => check.passed).length ?? 0;
@@ -210,12 +192,14 @@ export default function Home() {
   const portfolioFull = portfolio.entries.length >= MAX_OPEN_STRATEGIES;
   const underlyingOccupied = Boolean(leader && portfolio.underlyings.has(leader.symbol));
   const construction = leader ? constructPosition(leader) : null;
-  const position = construction?.status === 'constructed' ? construction.position : null;
+  const position = construction?.status === 'constructed' && leader
+    ? { ...construction.position, quoteAgeSeconds: Math.ceil(Math.max(construction.position.quoteAgeSeconds, leader.quoteAgeSeconds ?? Infinity) + evidenceAgeSeconds(leader.capturedAt, refreshedAt)) }
+    : null;
   const leaderMemory = leader
     ? memories.find((memory) => memory.symbol === leader.symbol && memory.generatedAt === scanBatch?.capturedAt)
     : undefined;
   const councilVotes = position && leader ? runAgentCouncil(leader, position, scanBatch?.catalyst, leaderMemory) : [];
-  const proposalDecision = position && snapshot && !portfolioFull && !underlyingOccupied
+  const proposalDecision = position && snapshot && accountReady && scanFresh && !historyError && !portfolioFull && !underlyingOccupied
     ? evaluateProposal({ ...toTradeProposal(position, councilVotes), correlationSlotsAfter: portfolio.entries.length + 1 }, {
         openRisk: portfolio.openRisk,
         openPositions: portfolio.entries.length,
@@ -227,6 +211,10 @@ export default function Home() {
     ? candidate
       ? portfolioFull
         ? `${leader.symbol} scan held because the two-strategy portfolio is full`
+        : !accountFresh || !scanFresh
+        ? `${leader.symbol} analysis needs fresh evidence before execution`
+        : construction?.status === 'blocked'
+        ? `${leader.symbol} research signal has no executable position`
         : underlyingOccupied
         ? `${leader.symbol} scan held because that underlying is already open`
         : proposalDecision && !proposalDecision.approved
@@ -264,7 +252,7 @@ export default function Home() {
         </nav>
 
         <div className="sidebar-foot">
-          <div className={`connection ${snapshot ? '' : 'offline'}`}><i />{snapshot ? 'Alpaca synced' : telemetryError ? 'Telemetry unavailable' : 'Awaiting telemetry'}</div>
+          <div className={`connection ${accountFresh ? '' : 'offline'}`}><i />{accountFresh ? 'Alpaca synced' : snapshot ? 'Last account snapshot' : telemetryError ? 'Telemetry unavailable' : 'Awaiting telemetry'}</div>
           <p>PAPER TRADING</p>
           <small>{snapshot ? 'Sanitized snapshot' : 'No broker data exposed'}</small>
         </div>
@@ -277,7 +265,7 @@ export default function Home() {
             <h1>{view === 'overview' ? 'Trading command center' : view === 'risk' ? 'Risk desk' : `${view.charAt(0).toUpperCase()}${view.slice(1)}`}</h1>
           </div>
           <div className="market-state">
-            <span className={snapshot?.market.isOpen ? '' : 'market-closed'}><i />{snapshot ? (snapshot.market.isOpen ? 'MARKET OPEN' : 'MARKET CLOSED') : 'WAITING FOR SYNC'}</span>
+            <span className={accountFresh && snapshot?.market.isOpen ? '' : 'market-closed'}><i />{accountFresh && snapshot ? (snapshot.market.isOpen ? 'MARKET OPEN' : 'MARKET CLOSED') : snapshot ? 'SESSION UNVERIFIED' : 'WAITING FOR SYNC'}</span>
             <label className="time-zone-control">
               <span className="sr-only">Display timezone</span>
               <strong>{timeLabel(snapshot?.market.timestamp, TIME_ZONES[timeZoneLabel])}</strong>
@@ -287,8 +275,8 @@ export default function Home() {
                 <option value="UTC">UTC</option>
               </select>
             </label>
-            <span className={`agent-toggle ${automation?.paused ? 'paused' : automation && !automation.dispatchEligibleNow ? 'off-hours' : ''}`} aria-label="Cloudflare automation state">
-              {automation?.paused ? 'Paused' : automation && !automation.dispatchEligibleNow ? 'Off hours' : 'Scheduled'}
+            <span className={`agent-toggle ${controlClass}`} aria-label="Cloudflare automation state">
+              {controlLabel}
             </span>
           </div>
         </header>
@@ -302,9 +290,7 @@ export default function Home() {
           <article className="metric">
             <p>Competition P&amp;L</p>
             <h2 className={competitionPnlPct === undefined ? 'neutral' : competitionPnlPct >= 0 ? 'gain' : 'loss'}>{competitionPnlPct === undefined ? '—' : signedPercent(competitionPnlPct)}</h2>
-            <div className="spark-bars" aria-label="Equity trend rising">
-              {equityBars.map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}
-            </div>
+            <div className="metric-foot"><small>Latest account snapshot</small></div>
           </article>
           <article className="metric">
             <p>Open strategies</p>
@@ -314,8 +300,8 @@ export default function Home() {
           </article>
           <article className="metric">
             <p>Agent state</p>
-            <h2 className="state"><i className={automation?.paused ? 'paused' : automation && !automation.dispatchEligibleNow ? 'off-hours' : ''} />{automation?.paused ? 'Paused' : automation && !automation.dispatchEligibleNow ? 'Off hours' : 'Automated'}</h2>
-            <div className="metric-foot"><small>{automation && !automation.dispatchEligibleNow ? automation.dispatchWindow : automation?.reason ?? 'Exit / entry cadence'}</small><b className="muted">{automation ? `${automation.exitCadenceMinutes}m / ${automation.entryCadenceMinutes}m` : '5m / 10m'}</b></div>
+            <h2 className="state"><i className={controlClass} />{controlLabel}</h2>
+            <div className="metric-foot"><small>{controlLabel === 'Status unknown' ? 'Control status unavailable' : automation?.haltAll ? 'Exits and entries halted' : automation?.entriesPaused ? 'Exit monitoring remains scheduled' : 'Exit / entry cadence'}</small><b className="muted">{automation ? `${automation.exitCadenceMinutes}m / ${automation.entryCadenceMinutes}m` : '—'}</b></div>
           </article>
         </div>
 
@@ -329,11 +315,12 @@ export default function Home() {
               <span className={`confidence ${proposalDecision && !proposalDecision.approved || !candidate ? 'abstain' : ''}`}>
                 {portfolioFull
                   ? 'PORTFOLIO FULL'
+                  : !accountFresh || !scanFresh ? 'FRESH EVIDENCE REQUIRED'
                   : underlyingOccupied
                   ? `${leader?.symbol} OPEN`
                   : proposalDecision && !proposalDecision.approved
                   ? 'RISK BLOCKED'
-                  : candidate ? `${Math.round((leader?.confidence ?? 0) * 100)}% signal confidence` : 'NO TRADE'}
+                  : candidate ? `${Math.round((leader?.confidence ?? 0) * 100)}% signal score` : 'NO TRADE'}
               </span>
             </div>
 
@@ -380,15 +367,18 @@ export default function Home() {
 
           <aside className="risk-card" id="risk">
             <div className="card-heading"><div><p className="eyebrow">READ-ONLY ACCOUNT GUARD</p><h2>Account health</h2></div><span className="shield">{accountReady ? '✓' : '·'}</span></div>
-            <div className={`risk-dial ${accountReady ? 'ready' : ''}`}><div><strong>{snapshot ? (accountReady ? '100%' : 'CHECK') : '—'}</strong><span>{snapshot ? (accountReady ? 'READY' : 'REVIEW') : 'NO DATA'}</span></div></div>
+            <div className={`risk-dial ${accountReady ? 'ready' : ''}`}><div><strong>{snapshot ? (accountReady ? 'OK' : 'CHECK') : '—'}</strong><span>{snapshot ? (accountReady ? 'ACCOUNT CHECKS' : 'REVIEW / REFRESH') : 'NO DATA'}</span></div></div>
             <dl className="risk-list">
               <div><dt>Open strategies</dt><dd>{snapshot ? `${portfolio.entries.length} / ${MAX_OPEN_STRATEGIES}` : '—'}</dd></div>
               <div><dt>Combined max risk</dt><dd><span>{money(portfolio.openRisk, 0)}</span> / {money(DEFAULT_RISK_POLICY.maxOpenRisk, 0)}</dd></div>
               <div><dt>Daily drawdown</dt><dd><span>{snapshot ? `${dailyDrawdownPct.toFixed(2)}%` : '—'}</span> / 1.50%</dd></div>
               <div><dt>Trading blocked</dt><dd>{snapshot ? (snapshot.account.tradingBlocked ? 'YES' : 'NO') : '—'}</dd></div>
-              <div><dt>Kill switch</dt><dd className="armed">{automation?.paused ? 'PAUSED' : 'ARMED'}</dd></div>
+              <div><dt>Automation control</dt><dd>{controlLabel.toUpperCase()}</dd></div>
+              <div><dt>Protective monitoring</dt><dd>{controlLabel === 'Status unknown' ? 'UNVERIFIED' : automation?.haltAll ? 'HALTED' : automation?.dispatchEligibleNow ? 'SCHEDULED' : 'OFF HOURS'}</dd></div>
             </dl>
             <p className={`risk-message ${accountReady ? '' : 'waiting'}`}><span>{accountReady ? '✓' : '·'}</span> {accountReady ? 'Account ready for analysis' : 'Waiting for verified account state'}</p>
+            <p className="control-explanation">Pause stops new entries. Halt all also stops scheduled exit monitoring. Neither action closes positions or cancels existing broker orders.</p>
+            <a className="control-link" href="https://github.com/Brikita/Alpaca/actions/workflows/control-paper-automation.yml" target="_blank" rel="noreferrer">Manage paper automation in GitHub ↗</a>
           </aside>
         </div>
 
