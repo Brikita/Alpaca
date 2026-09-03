@@ -192,11 +192,11 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Purpose:** Separate analysis from authorization to act.
 
-**Strengths:** A strongly consistent Durable Object state is checked before every scheduled dispatch. Only the token-authenticated GitHub control workflow can change it, and every change requires an audit reason.
+**Strengths:** A strongly consistent Durable Object state is checked by the scheduler and again by the runner before submission. `pause` blocks new exposure while protective exit monitoring continues; `halt_all` is deliberately stronger and stops both. Only the token-authenticated GitHub control workflow can change state, and each change requires an audit reason.
 
-**Uses:** Development, abnormal-market conditions, debugging, and end-of-session shutdown.
+**Uses:** Pause entries during review, abnormal-market conditions, or development without abandoning open-position monitoring. Reserve the full halt for broker-state incidents or deliberate maintenance where no automation may act.
 
-**Current limitation:** The dashboard exposes pause status read-only. Operators intentionally change it in GitHub Actions so a public browser session never receives the control token.
+**Current limitation:** The dashboard exposes control status read-only. Operators intentionally change it in GitHub Actions so a public browser session never receives the control token. Per-trade human approval is a separate, not-yet-enabled milestone; the current entry path remains automated paper trading after every technical gate passes.
 
 ### Performance evidence and replay
 

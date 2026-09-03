@@ -356,3 +356,24 @@ Previous scans are now an active input rather than passive journal material. The
 - Seventy-three automated tests pass.
 - TypeScript and lint pass.
 - The historical September 1 GLD fill is described as predating this new gate; no retrospective memory approval is claimed.
+
+## 2026-09-03 — Release-candidate evidence and control safety
+
+### What changed
+
+- Versioned new order evidence so every new entry requires exactly one valid vote from Regime, Volatility, Catalyst, Memory, and Red Team.
+- Preserved the original four-vote September 1 GLD evidence for reconciliation and protective exits only; no Memory approval was invented after the fact.
+- Rejected invalid, timezone-free, future, stale, or mismatched account, quote, Catalyst, and Memory timestamps. A runner now rechecks freshness after its atomic dry run and immediately before paper submission.
+- Split entry pause from full halt. A normal pause suppresses new-entry dispatches while the five-minute monitor and reconciliation cycle continue; `halt_all` stops every scheduled dispatch. Queued runners recheck control state before acting.
+- Replaced optimistic dashboard fallbacks with explicit unknown/stale states, removed the illustrative rising mini-chart, changed confidence wording to “signal score,” and isolated optional panel failures.
+- Added a no-secret CI workflow and a local Worker-runtime check covering authentication, durable state, control transitions, validation, and CORS without broker or GitHub calls.
+
+### Reasoning and routine impact
+
+Freshness is part of authorization, not decoration: an invalid date can no longer be clamped to zero age, and evidence cannot be borrowed from another scan. During the daily routine, use entry pause whenever you want time to review without sacrificing protective monitoring. Use full halt only when automated position management itself would be unsafe. The dashboard reports what it can verify instead of presenting missing control data as “Scheduled” or an old snapshot as ready.
+
+### Verification
+
+- Ninety-two automated tests pass before the release build.
+- The bundled Cloudflare Worker passes an isolated runtime test for token authentication, Durable Object control state, pause/halt/resume behavior, input validation, and CORS.
+- No broker request or GitHub dispatch occurs in those tests; live trading remains prohibited.

@@ -6,7 +6,9 @@ VolGuard currently builds with Vinext and runs publicly on OpenAI Sites. Its API
 
 ## Automation control and alerts
 
-Use **Actions → Control VolGuard paper automation → Run workflow** to select `pause` or `resume` and enter an audit reason. The workflow holds the control token; the public dashboard only reads `/status`. Failures, accepted paper entries/exits, and distinct safety holds create deduplicated GitHub Issues with a link to the exact run.
+Use **Actions → Control VolGuard paper automation → Run workflow** and enter an audit reason. Select `pause` to stop only new-entry scans/submissions while the five-minute protective monitor continues. Select `halt_all` only when even scheduled exits must stop—for example, while broker state is known to be inconsistent. Select `resume` after the reason has been resolved. These controls do not close positions or cancel existing broker orders. The workflow records its reported GitHub actor and run ID; the public dashboard only reads `/status`. Both entry and exit runners recheck a fresh status immediately before submission, which covers jobs already queued when a control changes.
+
+Failures, accepted paper entries/exits, and distinct safety holds create deduplicated GitHub Issues with a link to the exact run. A separate no-secret CI workflow verifies tests, TypeScript, lint, the Worker runtime, and the production build on pull requests and pushes to `master`.
 
 Required server-side configuration includes `VOLGUARD_CONTROL_URL` and `VOLGUARD_CONTROL_TOKEN` in the GitHub `paper-trading` environment, `CONTROL_TOKEN` as a Worker secret, and the non-secret `VOLGUARD_CONTROL_URL` binding in the Sites runtime. Never expose either token to browser code.
 
