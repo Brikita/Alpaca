@@ -1,6 +1,7 @@
 import type { SafePosition } from './alpaca-snapshot.ts';
 import type { PaperOrderEvent } from './paper-order.ts';
 import { priorTradingSession, type MarketCalendarSession } from './market-calendar.ts';
+import { evidenceAgeSeconds, timestampMs } from './evidence-time.ts';
 
 export const DEFAULT_EXIT_POLICY = {
   profitCapturePct: 0.5,
@@ -106,6 +107,7 @@ export function evaluateExit(input: {
   now?: string;
 }): ExitEvaluation {
   const now = input.now ?? new Date().toISOString();
+  if (!Number.isFinite(timestampMs(now))) throw new Error('A valid exit evaluation timestamp is required.');
   if (input.entry.eventType !== 'reconciled'
     || input.entry.brokerStatus !== 'filled'
     || input.entry.filledQuantity <= 0
@@ -117,8 +119,12 @@ export function evaluateExit(input: {
   const positionMatched = matchedEntryPositions(input.entry, input.positions);
   const quoteValues = input.entry.legs.map((leg) => {
     const quote = input.quotes[leg.symbol];
-    if (!quote || quote.bidPrice <= 0 || quote.askPrice <= 0 || quote.askPrice < quote.bidPrice) {
+    if (!quote || !Number.isFinite(quote.bidPrice) || !Number.isFinite(quote.askPrice)
+      || quote.bidPrice <= 0 || quote.askPrice <= 0 || quote.askPrice < quote.bidPrice) {
       throw new Error(`A valid two-sided quote is required for ${leg.symbol}.`);
+    }
+    if (!Number.isFinite(evidenceAgeSeconds(quote.timestamp, now))) {
+      throw new Error(`A valid non-future quote timestamp is required for ${leg.symbol}.`);
     }
     return { leg, quote };
   });
@@ -129,7 +135,7 @@ export function evaluateExit(input: {
 
   const nowMs = new Date(now).getTime();
   const quoteAgeSeconds = Math.max(...quoteValues.map(({ quote }) => (
-    Math.max(0, (nowMs - new Date(quote.timestamp).getTime()) / 1000)
+    evidenceAgeSeconds(quote.timestamp, nowMs)
   )));
   const quoteFresh = quoteAgeSeconds <= DEFAULT_EXIT_POLICY.maxQuoteAgeSeconds;
   const entryDebit = input.entry.filledAveragePrice;

@@ -60,3 +60,29 @@ test('abstains on the same signal when the market is closed and quotes are stale
   assert.equal(scan.checks.find((check) => check.id === 'freshness')?.passed, false);
   assert.equal(scan.checks.find((check) => check.id === 'edge')?.passed, true);
 });
+
+test('never treats missing, invalid, stale, or future underlying quotes as fresh', () => {
+  for (const timestamp of [undefined, 'invalid', '2026-08-28T20:00:21Z', '2026-08-28T19:59:00Z']) {
+    const scan = buildOptionScan({ symbol: 'SPY', capturedAt, expiration, marketOpen: true,
+      stock: { latestQuote: { bp: 99.98, ap: 100.02, t: timestamp } }, bars, chain });
+    assert.equal(scan.status, 'abstain');
+    assert.equal(scan.checks.find((check) => check.id === 'freshness')?.passed, false);
+    assert.equal(JSON.stringify(scan).includes('Infinity'), false);
+  }
+});
+
+test('invalid ATM timestamps abstain; malformed wing timestamps are excluded from execution quotes', () => {
+  const input = { symbol: 'SPY', capturedAt, expiration, marketOpen: true,
+    stock: { latestQuote: { bp: 99.98, ap: 100.02, t: capturedAt } }, bars };
+  const brokenAtm = structuredClone(chain);
+  brokenAtm.snapshots.SPY260904C00100000.latestQuote.t = 'invalid';
+  const scan = buildOptionScan({ ...input, chain: brokenAtm });
+  assert.equal(scan.status, 'abstain');
+  assert.equal(scan.quoteAgeSeconds, null);
+  assert.deepEqual(scan.contracts, []);
+  const brokenWing = structuredClone(chain);
+  brokenWing.snapshots.SPY260904C00101000.latestQuote.t = '2026-08-28T20:01:00Z';
+  const candidate = buildOptionScan({ ...input, chain: brokenWing });
+  assert.equal(candidate.status, 'candidate');
+  assert.equal(candidate.contracts.some((quote) => quote.symbol === 'SPY260904C00101000'), false);
+});

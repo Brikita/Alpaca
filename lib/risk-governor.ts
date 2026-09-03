@@ -12,6 +12,10 @@ function gate(id: string, label: string, passed: boolean, detail: string): GateR
   return { id, label, passed, detail };
 }
 
+function nonnegative(value: number): boolean {
+  return Number.isFinite(value) && value >= 0;
+}
+
 export function evaluateProposal(
   proposal: TradeProposal,
   portfolio: PortfolioSnapshot,
@@ -24,6 +28,7 @@ export function evaluateProposal(
     : [];
   const councilApproved = completeCouncil
     && approvedAgents.length === REQUIRED_AGENT_NAMES.length
+    && Number.isFinite(proposal.confidence) && proposal.confidence <= 1
     && proposal.confidence >= policy.minConfidence;
   const blockedAgents = completeCouncil
     ? REQUIRED_AGENT_NAMES.filter((agent) => voteByAgent.get(agent)?.approved !== true)
@@ -34,14 +39,14 @@ export function evaluateProposal(
     gate('defined-risk', 'Loss is defined', proposal.definedRisk, proposal.definedRisk ? `$${proposal.maxLoss} maximum` : 'Unbounded loss'),
     gate('naked-short', 'No naked short legs', !proposal.nakedShort, proposal.nakedShort ? 'Naked short detected' : 'Every short leg is covered'),
     gate('expiry', 'Not expiring today', !proposal.expiresToday, proposal.expiresToday ? 'Same-day expiry blocked' : 'Expiry window accepted'),
-    gate('trade-risk', 'Per-trade risk', proposal.maxLoss <= policy.maxLossPerTrade, `$${proposal.maxLoss} / $${policy.maxLossPerTrade}`),
-    gate('portfolio-risk', 'Portfolio risk', portfolio.openRisk + proposal.maxLoss <= policy.maxOpenRisk, `$${portfolio.openRisk + proposal.maxLoss} / $${policy.maxOpenRisk}`),
-    gate('position-capacity', 'Strategy capacity', portfolio.openPositions + 1 <= policy.maxOpenPositions, `${portfolio.openPositions + 1} / ${policy.maxOpenPositions} positions`),
-    gate('daily-drawdown', 'Daily drawdown', portfolio.dailyDrawdown <= policy.maxDailyDrawdown, `$${portfolio.dailyDrawdown} / $${policy.maxDailyDrawdown}`),
-    gate('competition-drawdown', 'Competition drawdown', portfolio.competitionDrawdown <= policy.maxCompetitionDrawdown, `$${portfolio.competitionDrawdown} / $${policy.maxCompetitionDrawdown}`),
-    gate('correlation', 'Correlation capacity', proposal.correlationSlotsAfter <= policy.maxCorrelatedPositions, `${proposal.correlationSlotsAfter} / ${policy.maxCorrelatedPositions} slots`),
-    gate('spread', 'Bid-ask spread', proposal.spreadPct <= policy.maxSpreadPct, `${Math.round(proposal.spreadPct * 100)}% / ${Math.round(policy.maxSpreadPct * 100)}%`),
-    gate('quote-age', 'Quote freshness', proposal.quoteAgeSeconds <= policy.maxQuoteAgeSeconds, `${proposal.quoteAgeSeconds}s / ${policy.maxQuoteAgeSeconds}s`),
+    gate('trade-risk', 'Per-trade risk', nonnegative(proposal.maxLoss) && proposal.maxLoss > 0 && proposal.maxLoss <= policy.maxLossPerTrade, `$${proposal.maxLoss} / $${policy.maxLossPerTrade}`),
+    gate('portfolio-risk', 'Portfolio risk', nonnegative(portfolio.openRisk) && portfolio.openRisk + proposal.maxLoss <= policy.maxOpenRisk, `$${portfolio.openRisk + proposal.maxLoss} / $${policy.maxOpenRisk}`),
+    gate('position-capacity', 'Strategy capacity', Number.isInteger(portfolio.openPositions) && portfolio.openPositions >= 0 && portfolio.openPositions + 1 <= policy.maxOpenPositions, `${portfolio.openPositions + 1} / ${policy.maxOpenPositions} positions`),
+    gate('daily-drawdown', 'Daily drawdown', nonnegative(portfolio.dailyDrawdown) && portfolio.dailyDrawdown <= policy.maxDailyDrawdown, `$${portfolio.dailyDrawdown} / $${policy.maxDailyDrawdown}`),
+    gate('competition-drawdown', 'Competition drawdown', nonnegative(portfolio.competitionDrawdown) && portfolio.competitionDrawdown <= policy.maxCompetitionDrawdown, `$${portfolio.competitionDrawdown} / $${policy.maxCompetitionDrawdown}`),
+    gate('correlation', 'Correlation capacity', Number.isInteger(proposal.correlationSlotsAfter) && proposal.correlationSlotsAfter >= 1 && proposal.correlationSlotsAfter <= policy.maxCorrelatedPositions, `${proposal.correlationSlotsAfter} / ${policy.maxCorrelatedPositions} slots`),
+    gate('spread', 'Bid-ask spread', nonnegative(proposal.spreadPct) && proposal.spreadPct <= policy.maxSpreadPct, `${Math.round(proposal.spreadPct * 100)}% / ${Math.round(policy.maxSpreadPct * 100)}%`),
+    gate('quote-age', 'Quote freshness', nonnegative(proposal.quoteAgeSeconds) && proposal.quoteAgeSeconds <= policy.maxQuoteAgeSeconds, `${proposal.quoteAgeSeconds}s / ${policy.maxQuoteAgeSeconds}s`),
     gate(
       'council',
       'Agent council',

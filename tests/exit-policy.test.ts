@@ -104,3 +104,10 @@ test('fails closed when a trigger uses stale quotes or unmatched positions', () 
   assert.equal(unmatched.shouldExit, false);
   assert.equal(unmatched.positionMatched, false);
 });
+
+test('rejects invalid and future exit quotes instead of clamping their age to zero', () => {
+  for (const timestamp of ['invalid', '2026-09-01T16:38:00.000Z']) {
+    assert.throws(() => evaluateExit({ entry, positions, quotes: quotes(5.5, 1, timestamp),
+      now: '2026-09-01T16:37:45.000Z' }), /valid non-future quote timestamp/);
+  }
+});

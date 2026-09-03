@@ -9,7 +9,7 @@ function validBatch(): OptionScanBatch {
     capturedAt: '2026-08-28T15:00:00.000Z',
     expiration: '2026-09-04',
     marketOpen: true,
-    stock: { latestTrade: { p: 100 } },
+    stock: { latestTrade: { p: 100, t: '2026-08-28T14:59:50.000Z' } },
     bars: Array.from({ length: 12 }, (_, index) => ({
       c: 100 + Math.sin(index) * 1.5,
       t: `2026-08-${String(index + 10).padStart(2, '0')}T20:00:00Z`,
@@ -42,6 +42,12 @@ test('accepts a complete sanitized option scan batch', () => {
 test('rejects an inconsistent candidate count', () => {
   const batch = validBatch();
   assert.equal(isOptionScanBatch({ ...batch, candidateCount: batch.candidateCount + 1 }), false);
+});
+
+test('rejects invalid capture timestamps and a scan from a different batch', () => {
+  const batch = validBatch();
+  assert.equal(isOptionScanBatch({ ...batch, capturedAt: 'invalid' }), false);
+  assert.equal(isOptionScanBatch({ ...batch, scans: [{ ...batch.scans[0], capturedAt: '2026-08-28T14:59:00Z' }] }), false);
 });
 
 test('rejects an incomplete decision trace', () => {

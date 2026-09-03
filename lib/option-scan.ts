@@ -11,6 +11,7 @@ import {
   type OptionScanBatch,
   type PriceBar,
   type StockSnapshot,
+  type ScanInput,
 } from './option-intelligence.ts';
 
 interface AlpacaClockResponse {
@@ -55,11 +56,11 @@ async function collectSymbol(
   expiration: string,
   marketOpen: boolean,
   environment: AlpacaEnvironment,
-): Promise<OptionScan> {
+): Promise<{ input: Omit<ScanInput, 'capturedAt'>; error?: never } | { symbol: string; error: string }> {
   try {
     const stock = (await runAlpaca<StockSnapshot>(['data', 'snapshot', '--symbol', symbol], environment)).data;
     const reference = stockReferencePrice(stock);
-    if (!reference) return buildUnavailableScan({ symbol, capturedAt, expiration, marketOpen }, 'Underlying price unavailable');
+    if (!reference) return { symbol, error: 'Underlying price unavailable' };
 
     const start = new Date(capturedAt);
     start.setUTCDate(start.getUTCDate() - 45);
@@ -75,18 +76,17 @@ async function collectSymbol(
         '--strike-price-gte', String(lowerStrike), '--strike-price-lte', String(upperStrike), '--limit', '1000',
       ], environment, 60_000),
     ]);
-    return buildOptionScan({
+    return { input: {
       symbol,
-      capturedAt,
       expiration,
       marketOpen,
       stock,
       bars: bars.data.bars ?? [],
       chain: chain.data,
-    });
+    } };
   } catch (error) {
     const detail = describeCollectorError(error);
-    return buildUnavailableScan({ symbol, capturedAt, expiration, marketOpen }, detail);
+    return { symbol, error: detail };
   }
 }
 
@@ -96,7 +96,7 @@ export async function collectOptionScanBatch(
   now = new Date(),
 ): Promise<OptionScanBatch> {
   const safeEnvironment = { ...environment, ALPACA_LIVE_TRADE: 'false' };
-  const capturedAt = now.toISOString();
+  const collectionStartedAt = now.toISOString();
   const preferredExpiration = targetFriday(now);
   const calendarEnd = new Date(`${preferredExpiration}T23:59:59.000Z`);
   const calendarStart = new Date(now);
@@ -108,9 +108,14 @@ export async function collectOptionScanBatch(
   ]);
   const expiration = selectExpirationFromCalendar(preferredExpiration, calendar);
   const marketOpen = Boolean(clock.data.is_open);
-  const scans = await Promise.all(
-    universe.map((symbol) => collectSymbol(symbol, capturedAt, expiration, marketOpen, safeEnvironment)),
+  const collected = await Promise.all(
+    universe.map((symbol) => collectSymbol(symbol, collectionStartedAt, expiration, marketOpen, safeEnvironment)),
   );
+  // Compare all broker quotes with the completion instant, not the request-start instant.
+  const capturedAt = new Date().toISOString();
+  const scans: OptionScan[] = collected.map((result) => 'input' in result
+    ? buildOptionScan({ ...result.input, capturedAt })
+    : buildUnavailableScan({ symbol: result.symbol, capturedAt, expiration, marketOpen }, result.error));
   return {
     schemaVersion: 1,
     source: 'alpaca-cli',

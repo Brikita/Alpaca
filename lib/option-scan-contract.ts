@@ -6,6 +6,7 @@ import type {
 } from './option-intelligence.ts';
 import type { CatalystSnapshot } from './catalyst.ts';
 import type { MarketCalendarSession } from './market-calendar.ts';
+import { timestampMs } from './evidence-time.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -37,7 +38,7 @@ const catalystStatuses = new Set<CatalystSnapshot['status']>(['clear', 'risk', '
 function isCatalystSnapshot(value: unknown): value is CatalystSnapshot {
   if (!isRecord(value)
     || value.source !== 'alpaca-news'
-    || typeof value.capturedAt !== 'string'
+    || !Number.isFinite(timestampMs(value.capturedAt))
     || typeof value.status !== 'string'
     || !catalystStatuses.has(value.status as CatalystSnapshot['status'])
     || !isFiniteNumber(value.lookbackMinutes)
@@ -53,7 +54,7 @@ function isCatalystSnapshot(value: unknown): value is CatalystSnapshot {
     && typeof article.headline === 'string'
     && article.headline.length <= 220
     && typeof article.source === 'string'
-    && typeof article.createdAt === 'string'
+    && Number.isFinite(timestampMs(article.createdAt))
     && Array.isArray(article.symbols)
     && article.symbols.every((symbol) => typeof symbol === 'string')
     && typeof article.url === 'string'
@@ -110,7 +111,7 @@ function isOptionScan(value: unknown): value is OptionScan {
   if (!isRecord(value)) return false;
   if (
     typeof value.symbol !== 'string' ||
-    typeof value.capturedAt !== 'string' ||
+    !Number.isFinite(timestampMs(value.capturedAt)) ||
     typeof value.expiration !== 'string' ||
     typeof value.status !== 'string' ||
     !statuses.has(value.status as OptionScan['status']) ||
@@ -120,7 +121,9 @@ function isOptionScan(value: unknown): value is OptionScan {
     typeof value.direction !== 'string' ||
     !directions.has(value.direction as OptionScan['direction']) ||
     !isFiniteNumber(value.confidence) ||
+    value.confidence < 0 || value.confidence > 1 ||
     !isFiniteNumber(value.directionalConfidence) ||
+    value.directionalConfidence < 0 || value.directionalConfidence > 1 ||
     !isFiniteNumber(value.combinedVolume)
   ) return false;
 
@@ -135,6 +138,7 @@ function isOptionScan(value: unknown): value is OptionScan {
     value.quoteAgeSeconds,
   ];
   if (!nullableNumbers.every(isNullableFiniteNumber)) return false;
+  if (nullableNumbers.some((number) => typeof number === 'number' && number < 0)) return false;
   if (!isNullableString(value.callSymbol) || !isNullableString(value.putSymbol)) return false;
   if (!Array.isArray(value.contracts) || value.contracts.length > 200 || !value.contracts.every(isOptionContractQuote)) {
     return false;
@@ -142,6 +146,9 @@ function isOptionScan(value: unknown): value is OptionScan {
   if (!Array.isArray(value.checks) || value.checks.length !== checkIds.size || !value.checks.every(isScanCheck)) {
     return false;
   }
+  if (value.status === 'candidate' && (value.strategy === 'abstain'
+    || !value.checks.every((check) => check.passed)
+    || !isFiniteNumber(value.quoteAgeSeconds) || value.quoteAgeSeconds > 60)) return false;
   return new Set(value.checks.map((check) => check.id)).size === checkIds.size;
 }
 
@@ -151,13 +158,14 @@ export function isOptionScanBatch(value: unknown): value is OptionScanBatch {
     value.schemaVersion === 1 &&
     value.source === 'alpaca-cli' &&
     value.mode === 'paper' &&
-    typeof value.capturedAt === 'string' &&
+    Number.isFinite(timestampMs(value.capturedAt)) &&
     typeof value.marketOpen === 'boolean' &&
     typeof value.targetExpiration === 'string' &&
     Array.isArray(value.universe) &&
     value.universe.every((symbol) => typeof symbol === 'string') &&
     Array.isArray(value.scans) &&
     value.scans.every(isOptionScan) &&
+    value.scans.every((scan) => scan.capturedAt === value.capturedAt) &&
     isNullableString(value.leaderSymbol) &&
     isFiniteNumber(value.candidateCount) &&
     value.candidateCount === value.scans.filter((scan) => scan.status === 'candidate').length &&

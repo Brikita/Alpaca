@@ -13,6 +13,7 @@ import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../
 import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
 import { alertKey, writeWorkflowOutputs } from '../lib/workflow-output.ts';
 import type { DecisionMemory } from '../lib/decision-memory.ts';
+import { evidenceAgeSeconds } from '../lib/evidence-time.ts';
 
 const STARTING_EQUITY = 100_000;
 const MAX_EVIDENCE_AGE_SECONDS = 60;
@@ -37,10 +38,6 @@ async function readJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: privateHeaders(), cache: 'no-store' });
   if (!response.ok) throw new Error(`Read failed (${response.status}) for ${url}`);
   return response.json() as Promise<T>;
-}
-
-function ageSeconds(timestamp: string): number {
-  return Math.max(0, (Date.now() - new Date(timestamp).getTime()) / 1000);
 }
 
 function publisherConfiguration(): {
@@ -101,13 +98,14 @@ try {
     throw new Error('Broker option legs do not exactly match the VolGuard portfolio ledger.');
   }
 
-  const batchAge = ageSeconds(batch.capturedAt);
-  const snapshotAge = ageSeconds(snapshot.capturedAt);
+  const batchAge = evidenceAgeSeconds(batch.capturedAt);
+  const snapshotAge = evidenceAgeSeconds(snapshot.capturedAt);
   if (batchAge > MAX_EVIDENCE_AGE_SECONDS || snapshotAge > MAX_EVIDENCE_AGE_SECONDS) {
-    throw new Error('Account or scan evidence is stale; rerun snapshot and scan immediately before execution.');
+    throw new Error('Account or scan evidence is stale, invalid, or future-dated; collect fresh evidence before execution.');
   }
   const leader = batch.scans.find((scan) => scan.symbol === batch.leaderSymbol);
   if (!leader || leader.status !== 'candidate') hold('The fresh scan produced no eligible leader.');
+  if (leader.capturedAt !== batch.capturedAt) hold('The candidate does not belong to the current evidence batch.');
   if (portfolio.underlyings.has(leader.symbol)) {
     hold(`A ${leader.symbol} strategy is already open; one position per underlying is enforced.`);
   }
@@ -115,7 +113,8 @@ try {
 
   const construction = constructPosition(leader);
   if (construction.status === 'blocked') hold(construction.reason);
-  const currentQuoteAge = Math.ceil(construction.position.quoteAgeSeconds + batchAge);
+  const originalQuoteAge = Math.max(construction.position.quoteAgeSeconds, leader.quoteAgeSeconds ?? Infinity);
+  const currentQuoteAge = Math.ceil(originalQuoteAge + batchAge);
   const position = { ...construction.position, quoteAgeSeconds: currentQuoteAge };
   const votes = runAgentCouncil(leader, position, batch.catalyst, memory);
   const proposal = { ...toTradeProposal(position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
@@ -129,6 +128,16 @@ try {
     hold(`Risk governor blocked the proposal at ${decision.passed}/${decision.total} gates.`);
   }
 
+  function requireFreshExecutionEvidence(): void {
+    if (evidenceAgeSeconds(snapshot!.capturedAt) > MAX_EVIDENCE_AGE_SECONDS
+      || evidenceAgeSeconds(snapshot!.market.timestamp) > MAX_EVIDENCE_AGE_SECONDS
+      || evidenceAgeSeconds(batch!.capturedAt) + originalQuoteAge > MAX_EVIDENCE_AGE_SECONDS
+      || evidenceAgeSeconds(batch!.catalyst?.capturedAt) > MAX_EVIDENCE_AGE_SECONDS) {
+      hold('Evidence expired during validation; collect fresh data before submitting.');
+    }
+  }
+
+  requireFreshExecutionEvidence();
   const preview = await runPaperOrder(position, batch.capturedAt, votes, decision, true);
   await publish(preview);
   process.stdout.write(`${JSON.stringify({ stage: 'previewed', event: preview }, null, 2)}\n`);
@@ -137,6 +146,7 @@ try {
     workflowResult = { result: 'previewed', alertKey: 'execution-locked', message: 'Paper submission remains locked.' };
     process.stdout.write('Paper submission remains locked. Set VOLGUARD_EXECUTION_ENABLED=paper for one deliberate run.\n');
   } else {
+    requireFreshExecutionEvidence();
     try {
       const submitted = await runPaperOrder(position, batch.capturedAt, votes, decision, false, process.env);
       process.stdout.write(`${JSON.stringify({ stage: 'submitted', event: submitted }, null, 2)}\n`);

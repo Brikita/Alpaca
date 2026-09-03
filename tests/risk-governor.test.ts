@@ -95,3 +95,16 @@ test('blocks missing, duplicate, unknown, and malformed specialist votes', () =>
     assert.match(result.gates.find((item) => item.id === 'council')?.detail ?? '', /Invalid specialist set/);
   }
 });
+
+test('blocks invalid numeric risk evidence, including negative quote ages', () => {
+  const portfolio = { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 };
+  for (const change of [{ maxLoss: -1 }, { maxLoss: 0 }, { maxLoss: NaN }, { quoteAgeSeconds: -1 },
+    { quoteAgeSeconds: Infinity }, { spreadPct: -0.1 }, { confidence: Infinity }, { confidence: 1.1 },
+    { correlationSlotsAfter: 0 }]) {
+    assert.equal(evaluateProposal({ ...safeProposal, ...change }, portfolio).approved, false);
+  }
+  for (const change of [{ openRisk: -1 }, { openPositions: -1 }, { openPositions: 0.5 },
+    { dailyDrawdown: -1 }, { competitionDrawdown: -1 }]) {
+    assert.equal(evaluateProposal(safeProposal, { ...portfolio, ...change }).approved, false);
+  }
+});

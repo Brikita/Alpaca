@@ -2,6 +2,7 @@ import type { Direction, MarketSignal, Strategy } from './domain.ts';
 import { selectStrategy } from './strategy.ts';
 import type { CatalystSnapshot } from './catalyst.ts';
 import type { MarketCalendarSession } from './market-calendar.ts';
+import { evidenceAgeSeconds, timestampMs } from './evidence-time.ts';
 
 export interface PriceBar {
   c: number;
@@ -137,11 +138,15 @@ export function parseOptionSymbol(symbol: string): ParsedOptionSymbol | null {
 }
 
 export function stockReferencePrice(snapshot: StockSnapshot): number | null {
+  return stockReference(snapshot)?.price ?? null;
+}
+
+function stockReference(snapshot: StockSnapshot): { price: number; timestamp: string | undefined } | null {
   const bid = snapshot.latestQuote?.bp;
   const ask = snapshot.latestQuote?.ap;
-  if (finite(bid) && finite(ask) && bid > 0 && ask >= bid) return (bid + ask) / 2;
-  if (finite(snapshot.latestTrade?.p) && snapshot.latestTrade.p > 0) return snapshot.latestTrade.p;
-  if (finite(snapshot.dailyBar?.c) && snapshot.dailyBar.c > 0) return snapshot.dailyBar.c;
+  if (finite(bid) && finite(ask) && bid > 0 && ask >= bid) return { price: (bid + ask) / 2, timestamp: snapshot.latestQuote?.t };
+  if (finite(snapshot.latestTrade?.p) && snapshot.latestTrade.p > 0) return { price: snapshot.latestTrade.p, timestamp: snapshot.latestTrade.t };
+  if (finite(snapshot.dailyBar?.c) && snapshot.dailyBar.c > 0) return { price: snapshot.dailyBar.c, timestamp: snapshot.dailyBar.t };
   return null;
 }
 
@@ -157,11 +162,6 @@ function quoteMetrics(snapshot: OptionSnapshot | undefined) {
     timestamp: snapshot?.latestQuote?.t ?? null,
     volume: finite(snapshot?.dailyBar?.v) ? snapshot.dailyBar.v : 0,
   };
-}
-
-function quoteAgeSeconds(timestamp: string | null, capturedAt: string): number {
-  if (!timestamp) return Number.POSITIVE_INFINITY;
-  return Math.max(0, (new Date(capturedAt).getTime() - new Date(timestamp).getTime()) / 1000);
 }
 
 function sampleDeviation(values: number[]): number | null {
@@ -233,8 +233,10 @@ export function buildUnavailableScan(
 }
 
 export function buildOptionScan(input: ScanInput): OptionScan {
-  const underlyingPrice = stockReferencePrice(input.stock);
+  const reference = stockReference(input.stock);
+  const underlyingPrice = reference?.price;
   if (!underlyingPrice) return buildUnavailableScan(input, 'Underlying price unavailable');
+  if (!Number.isFinite(timestampMs(input.capturedAt))) throw new Error('A valid scan capture timestamp is required.');
 
   const pairs = new Map<number, { call?: [string, OptionSnapshot]; put?: [string, OptionSnapshot] }>();
   const contracts: OptionContractQuote[] = [];
@@ -242,7 +244,8 @@ export function buildOptionScan(input: ScanInput): OptionScan {
     const contract = parseOptionSymbol(symbol);
     if (!contract || contract.underlying !== input.symbol || contract.expiration !== input.expiration) continue;
     const metrics = quoteMetrics(snapshot);
-    if (metrics) {
+    const contractAge = evidenceAgeSeconds(metrics?.timestamp, input.capturedAt);
+    if (metrics && Number.isFinite(contractAge)) {
       contracts.push({
         symbol,
         type: contract.type,
@@ -251,7 +254,7 @@ export function buildOptionScan(input: ScanInput): OptionScan {
         ask: round(snapshot.latestQuote!.ap!),
         mid: round(metrics.mid),
         spreadPct: round(metrics.spreadPct),
-        quoteAgeSeconds: Math.round(quoteAgeSeconds(metrics.timestamp, input.capturedAt)),
+        quoteAgeSeconds: Math.ceil(contractAge),
         volume: metrics.volume,
       });
     }
@@ -270,12 +273,13 @@ export function buildOptionScan(input: ScanInput): OptionScan {
   const [putSymbol, putSnapshot] = pair.put!;
   const call = quoteMetrics(callSnapshot)!;
   const put = quoteMetrics(putSnapshot)!;
-  const historical = modelMove(input.bars, input.expiration);
+  const historical = modelMove(input.bars.filter((bar) => Number.isFinite(evidenceAgeSeconds(bar.t, input.capturedAt))), input.expiration);
   const impliedMovePct = ((call.mid + put.mid) / underlyingPrice) * 100;
   const spreadPct = Math.max(call.spreadPct, put.spreadPct);
   const age = Math.max(
-    quoteAgeSeconds(call.timestamp, input.capturedAt),
-    quoteAgeSeconds(put.timestamp, input.capturedAt),
+    evidenceAgeSeconds(call.timestamp, input.capturedAt),
+    evidenceAgeSeconds(put.timestamp, input.capturedAt),
+    evidenceAgeSeconds(reference?.timestamp, input.capturedAt),
   );
   const combinedVolume = call.volume + put.volume;
 
@@ -297,7 +301,7 @@ export function buildOptionScan(input: ScanInput): OptionScan {
     { id: 'history', label: 'Historical model', passed: historical.movePct !== null, detail: historical.movePct === null ? 'Fewer than 10 returns' : `${round(historical.movePct, 2)}% modeled move` },
     { id: 'pair', label: 'ATM option pair', passed: true, detail: `${callSymbol} + ${putSymbol}` },
     { id: 'liquidity', label: 'Execution quality', passed: spreadPct <= 0.12 && combinedVolume >= 100, detail: `${round(spreadPct * 100, 2)}% widest spread · ${combinedVolume} volume` },
-    { id: 'freshness', label: 'Quote freshness', passed: age <= 60, detail: `${Math.round(age)}s old` },
+    { id: 'freshness', label: 'Quote freshness', passed: age <= 60, detail: Number.isFinite(age) ? `${Math.ceil(age)}s oldest underlying / option quote` : 'Underlying or option timestamp is missing, invalid, or future-dated' },
     { id: 'edge', label: 'Strategy edge', passed: selection.strategy !== 'abstain', detail: selection.reason },
   ];
   const candidate = checks.every((check) => check.passed) && selection.strategy !== 'abstain';
@@ -326,7 +330,7 @@ export function buildOptionScan(input: ScanInput): OptionScan {
     directionalConfidence: round(historical.confidence),
     direction: historical.direction,
     spreadPct: round(spreadPct),
-    quoteAgeSeconds: Math.round(age),
+    quoteAgeSeconds: Number.isFinite(age) ? Math.ceil(age) : null,
     combinedVolume,
     contracts: candidate
       ? contracts.sort((left, right) => left.strike - right.strike || left.type.localeCompare(right.type))

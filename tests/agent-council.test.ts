@@ -99,3 +99,15 @@ test('red team vetoes an oversized position', () => {
   const votes = runAgentCouncil(scan, { ...position, maxLoss: 501 });
   assert.equal(votes.find((vote) => vote.agent === 'red_team')?.approved, false);
 });
+
+test('rejects stale catalyst and memory borrowed from another scan or underlying', () => {
+  for (const capturedAt of ['invalid', '2026-09-01T13:30:00Z', '2026-09-01T13:34:00Z']) {
+    assert.equal(runAgentCouncil(scan, position, { ...clearCatalyst, capturedAt }, confirmedMemory)
+      .find((vote) => vote.agent === 'catalyst')?.approved, false);
+  }
+  for (const change of [{ symbol: 'SPY' }, { generatedAt: '2026-09-01T13:23:12.747Z' },
+    { currentDirection: 'bullish' as const }, { currentStrategy: 'bull_call_spread' as const }]) {
+    assert.equal(runAgentCouncil(scan, position, clearCatalyst, { ...confirmedMemory, ...change })
+      .find((vote) => vote.agent === 'memory')?.approved, false);
+  }
+});

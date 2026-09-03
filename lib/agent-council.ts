@@ -3,6 +3,7 @@ import type { OptionScan } from './option-intelligence.ts';
 import type { ConstructedPosition } from './position-constructor.ts';
 import type { CatalystSnapshot } from './catalyst.ts';
 import type { DecisionMemory } from './decision-memory.ts';
+import { evidenceAgeSeconds } from './evidence-time.ts';
 
 function checkPassed(scan: OptionScan, id: OptionScan['checks'][number]['id']): boolean {
   return scan.checks.find((check) => check.id === id)?.passed === true;
@@ -20,6 +21,13 @@ export function runAgentCouncil(
   catalyst?: CatalystSnapshot,
   memory?: DecisionMemory,
 ): AgentVote[] {
+  const catalystFresh = catalyst !== undefined
+    && evidenceAgeSeconds(catalyst.capturedAt, scan.capturedAt) <= DEFAULT_RISK_POLICY.maxQuoteAgeSeconds;
+  const memoryMatches = memory !== undefined
+    && memory.symbol === scan.symbol
+    && memory.generatedAt === scan.capturedAt
+    && memory.currentStrategy === scan.strategy
+    && memory.currentDirection === scan.direction;
   const regimeApproved = scan.status === 'candidate'
     && checkPassed(scan, 'session')
     && checkPassed(scan, 'history')
@@ -59,16 +67,16 @@ export function runAgentCouncil(
     },
     {
       agent: 'catalyst',
-      approved: catalyst?.status === 'clear',
+      approved: catalystFresh && catalyst?.status === 'clear' && catalyst.highImpactCount === 0,
       confidence: catalyst?.status === 'clear' ? 0.75 : catalyst?.status === 'risk' ? 0.95 : 0,
-      rationale: catalyst?.rationale
+      rationale: catalyst && !catalystFresh ? 'Catalyst evidence is stale, invalid, or future-dated.' : catalyst?.rationale
         ?? 'Verified Alpaca news is unavailable; the catalyst specialist fails closed.',
     },
     {
       agent: 'memory',
-      approved: memory?.approved === true,
+      approved: memoryMatches && memory?.approved === true,
       confidence: memory?.confidence ?? 0,
-      rationale: memory?.rationale
+      rationale: memory && !memoryMatches ? 'Memory does not match this symbol, scan, strategy, and direction.' : memory?.rationale
         ?? 'Recent open-market scan history is unavailable; the memory specialist fails closed.',
     },
     {
