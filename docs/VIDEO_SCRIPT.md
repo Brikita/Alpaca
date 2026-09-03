@@ -28,13 +28,13 @@ Open one decision trace only if current telemetry is visible. Point to exact con
 
 **Narration:**
 
-“A candidate still cannot trade. The constructor chooses exact defined-risk legs and prices buys at the ask and sells at the bid. Four transparent specialists test regime, volatility, catalysts, and failure modes. Then thirteen deterministic gates enforce paper mode, covered shorts, expiry, quote quality, confidence, drawdown, capacity, and the loss budget. The agent can hold at most two strategies, five hundred dollars risk each, and one thousand dollars combined.”
+“A candidate still cannot trade. The constructor chooses exact defined-risk legs and prices buys at the ask and sells at the bid. Five transparent specialists test regime, volatility, catalysts, recent decision memory, and failure modes. Memory requires two matching open-market scans in the last hour and can veto a first sighting or conflicting setup. Then thirteen deterministic gates enforce paper mode, covered shorts, expiry, quote quality, confidence, drawdown, capacity, and the loss budget. The agent can hold at most two strategies, five hundred dollars risk each, and one thousand dollars combined.”
 
 ## 1:45–2:15 — Show slide 4, then Positions or Journal
 
 **Narration:**
 
-“Here is the real execution evidence. On September first, VolGuard selected the September fourth GLD 398–391 bear-put spread. The conservative limit was one dollar eighty-two, maximum loss was one hundred eighty-two dollars, and theoretical maximum expiration profit was five hundred eighteen dollars. The Alpaca dry run validated the atomic order, and the paper account filled at one dollar seventy-nine.”
+“Here is the real execution evidence from before the new memory gate was added. On September first, VolGuard selected the September fourth GLD 398–391 bear-put spread. The conservative limit was one dollar eighty-two, maximum loss was one hundred eighty-two dollars, and theoretical maximum expiration profit was five hundred eighteen dollars. The Alpaca dry run validated the atomic order, and the paper account filled at one dollar seventy-nine. Future entries must also pass Decision Memory.”
 
 Point to the submitted event, fill, exact broker-leg reconciliation, and most recent HOLD event. Do not describe an unrealized mark as realized profit.
 
@@ -42,7 +42,7 @@ Point to the submitted event, fill, exact broker-leg reconciliation, and most re
 
 **Narration:**
 
-“Entry is only half of the system. Every five minutes, a Cloudflare Worker dispatches one authenticated GitHub Actions paper cycle. Every run matches existing strategies to the broker and evaluates their exits. Every other run also refreshes the account and scans for a new position, so entry opportunities are checked every ten minutes. A new paper order still requires an open market, fresh evidence, free capacity, council approval, and all thirteen gates.”
+“Entry is only half of the system. Every five minutes, a Cloudflare Worker dispatches one authenticated GitHub Actions paper cycle. Every run matches existing strategies to the broker and evaluates their exits. Every other run also refreshes the account and scans for a new position, so entry opportunities are checked every ten minutes. A new paper order still requires an open market, fresh evidence, memory confirmation, free capacity, council approval, and all thirteen gates.”
 
 ## 2:40–3:05 — Show slide 6 and Journal
 

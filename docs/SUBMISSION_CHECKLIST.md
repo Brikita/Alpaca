@@ -24,7 +24,7 @@ Raw logs are **not listed as a separate required upload** in the supplied event 
 - [ ] GitHub Actions run showing a successful automated monitor cycle
 - [ ] Cloudflare Worker trigger/success view showing the five-minute schedule
 - [ ] GitHub Actions evidence showing the ten-minute entry branch and a safe abstention or approved paper entry
-- [ ] Performance page showing reconciled-trade metrics, verified catalyst evidence, and the daily replay disclosure
+- [ ] Performance page showing reconciled-trade metrics, verified catalyst evidence, Decision Memory confirmations, and the daily replay disclosure
 - [ ] Pause/resume workflow evidence showing the authenticated Durable Object control state
 - [ ] Test summary showing the current automated suite passing
 - [ ] Fresh-account evidence showing the $100,000 starting balance

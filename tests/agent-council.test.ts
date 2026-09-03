@@ -6,6 +6,7 @@ import type { OptionScan } from '../lib/option-intelligence.ts';
 import type { ConstructedPosition } from '../lib/position-constructor.ts';
 import { toTradeProposal } from '../lib/position-constructor.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
+import type { DecisionMemory } from '../lib/decision-memory.ts';
 
 const scan: OptionScan = {
   symbol: 'GLD', capturedAt: '2026-09-01T13:33:12.747Z', expiration: '2026-09-04',
@@ -44,16 +45,27 @@ const clearCatalyst: CatalystSnapshot = {
   rationale: 'No configured high-impact catalyst appeared in verified Alpaca news.',
 };
 
-test('produces four named, auditable votes without inventing catalyst clearance', () => {
+const confirmedMemory: DecisionMemory = {
+  schemaVersion: 1, symbol: 'GLD', generatedAt: scan.capturedAt, status: 'confirmed',
+  approved: true, confidence: 1, lookbackMinutes: 60, observations: 2,
+  confirmations: 2, agreementRatio: 1, currentStrategy: 'bear_put_spread',
+  currentDirection: 'bearish', signalStrengthStart: 0.74, signalStrengthCurrent: 0.75,
+  medianSpreadPct: 0.07, firstObservedAt: '2026-09-01T13:23:12.747Z',
+  lastObservedAt: scan.capturedAt,
+  rationale: 'GLD bear_put_spread bearish is confirmed in 2/2 open-market scans over 10m.',
+};
+
+test('produces five named, auditable votes without inventing specialist clearance', () => {
   const votes = runAgentCouncil(scan, position);
-  assert.deepEqual(votes.map((vote) => vote.agent), ['regime', 'volatility', 'catalyst', 'red_team']);
+  assert.deepEqual(votes.map((vote) => vote.agent), ['regime', 'volatility', 'catalyst', 'memory', 'red_team']);
   assert.equal(votes.find((vote) => vote.agent === 'catalyst')?.approved, false);
+  assert.equal(votes.find((vote) => vote.agent === 'memory')?.approved, false);
   assert.equal(votes.find((vote) => vote.agent === 'red_team')?.approved, true);
   assert.equal(votes.filter((vote) => vote.agent !== 'red_team' && vote.approved).length, 2);
 });
 
-test('allows the governor to approve only when council evidence and all rules pass', () => {
-  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position, clearCatalyst)), {
+test('allows the governor to approve only when council evidence and memory confirmation pass', () => {
+  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position, clearCatalyst, confirmedMemory)), {
     openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, true);
@@ -61,11 +73,19 @@ test('allows the governor to approve only when council evidence and all rules pa
 });
 
 test('fails closed when verified catalyst evidence is unavailable', () => {
-  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position)), {
+  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position, undefined, confirmedMemory)), {
     openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
   });
   assert.equal(decision.approved, false);
   assert.equal(decision.gates.find((gate) => gate.id === 'council')?.passed, false);
+});
+
+test('fails closed when the current setup lacks memory confirmation', () => {
+  const decision = evaluateProposal(toTradeProposal(position, runAgentCouncil(scan, position, clearCatalyst)), {
+    openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0,
+  });
+  assert.equal(decision.approved, false);
+  assert.match(decision.gates.find((gate) => gate.id === 'council')?.detail ?? '', /memory blocked/);
 });
 
 test('red team vetoes an oversized position', () => {

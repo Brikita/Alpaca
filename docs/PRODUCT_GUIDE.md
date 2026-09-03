@@ -88,6 +88,16 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Current limitation:** The council is a transparent evidence-driven specialist layer, not a hosted language-model service. The catalyst specialist uses verified Alpaca news and fails closed when that feed is unavailable or a configured high-impact headline appears; this keyword policy is intentionally conservative and is not a full economic-calendar forecast.
 
+### Decision Memory agent
+
+**Purpose:** Require the current proposal to be supported by repeated recent analysis instead of treating every ten-minute scan as an isolated event.
+
+**Strengths:** Reads the existing append-only D1 scan history; compares the same symbol, strategy, and direction across up to six open-market observations in a 60-minute window; requires at least two confirmations and 60% agreement; exposes confirmation count, agreement, signal-strength change, and median spread; and fails closed on missing, conflicting, first-sighting, closed-market, or unavailable evidence. It can confirm a current candidate but never manufacture one from an abstention.
+
+**Uses:** Reducing one-tick entries, documenting whether a thesis is persisting or fragmenting, explaining paper-order holds, and building a repeatable trader review routine.
+
+**Current limitation:** Repetition is not independent proof of predictive edge because consecutive scans share overlapping market data. The gate is a consistency filter, not a profitability claim, and must be evaluated against completed paper-trade outcomes before its thresholds are changed.
+
 ### Atomic paper-order execution
 
 **Purpose:** Convert a fresh 13/13-approved position into one Alpaca multi-leg limit order without manually entering individual legs.

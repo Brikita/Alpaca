@@ -12,6 +12,7 @@ import { evaluateProposal } from '../lib/risk-governor.ts';
 import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
 import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
 import { alertKey, writeWorkflowOutputs } from '../lib/workflow-output.ts';
+import type { DecisionMemory } from '../lib/decision-memory.ts';
 
 const STARTING_EQUITY = 100_000;
 const MAX_EVIDENCE_AGE_SECONDS = 60;
@@ -77,10 +78,12 @@ try {
 
   const orderEventUrl = process.env.VOLGUARD_ORDER_EVENT_URL
     ?? new URL('/api/order-events', scanUrl).toString();
-  const [{ snapshot }, { batch }, { events }] = await Promise.all([
+  const memoryUrl = new URL('/api/memory', scanUrl).toString();
+  const [{ snapshot }, { batch }, { events }, { memories }] = await Promise.all([
     readJson<{ snapshot: AlpacaSnapshot | null }>(telemetryUrl),
     readJson<{ batch: OptionScanBatch | null }>(scanUrl),
     readJson<{ events: PaperOrderEvent[] }>(orderEventUrl),
+    readJson<{ memories: DecisionMemory[] }>(memoryUrl),
   ]);
   if (!snapshot || !batch) throw new Error('Fresh hosted account and scan evidence are required.');
   if (snapshot.mode !== 'paper') throw new Error('Only the paper account may execute.');
@@ -108,12 +111,13 @@ try {
   if (portfolio.underlyings.has(leader.symbol)) {
     hold(`A ${leader.symbol} strategy is already open; one position per underlying is enforced.`);
   }
+  const memory = memories.find((item) => item.symbol === leader.symbol && item.generatedAt === batch.capturedAt);
 
   const construction = constructPosition(leader);
   if (construction.status === 'blocked') hold(construction.reason);
   const currentQuoteAge = Math.ceil(construction.position.quoteAgeSeconds + batchAge);
   const position = { ...construction.position, quoteAgeSeconds: currentQuoteAge };
-  const votes = runAgentCouncil(leader, position, batch.catalyst);
+  const votes = runAgentCouncil(leader, position, batch.catalyst, memory);
   const proposal = { ...toTradeProposal(position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
   const decision = evaluateProposal(proposal, {
     openRisk: portfolio.openRisk,

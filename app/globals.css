@@ -194,6 +194,10 @@ button, a { font: inherit; }
 .catalyst-list span.risk { color:#99473a; }
 .catalyst-list strong { font-size:9px; }
 .catalyst-list small { color:#90958d; font:8px var(--font-geist-mono); }
+.memory-metrics { margin:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.memory-metrics div { padding:12px; border:1px solid #e2e3db; background:#fafaf6; }
+.memory-metrics dt { color:#777c74; font:700 7px var(--font-geist-mono); letter-spacing:.08em; text-transform:uppercase; }
+.memory-metrics dd { margin:7px 0 0; font:700 15px var(--font-geist-mono); color:var(--ink); }
 .statusbar { margin:0 -42px; padding:11px 42px; display:flex; justify-content:space-between; color:#969a93; border-top:1px solid var(--line); font:8px var(--font-geist-mono); letter-spacing:.04em; }
 .statusbar b { color:#686e65; font-weight:600; }
 .dialog-backdrop { position:fixed; z-index:20; inset:0; display:grid; justify-content:end; background:rgb(17 21 16 / 54%); backdrop-filter:blur(3px); }
@@ -221,6 +225,7 @@ button, a { font: inherit; }
   .metrics { grid-template-columns:repeat(2,1fr); } .metric:nth-child(3) { border-left:0; border-top:1px solid var(--line); } .metric:nth-child(4) { border-top:1px solid var(--line); }
   .dashboard-grid { grid-template-columns:1fr; } .risk-card { min-height:370px; }
   .journal-grid,.performance-grid,.catalyst-card { grid-template-columns:1fr; }
+  .memory-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media (max-width:720px) {
   body { overflow-x:hidden; }

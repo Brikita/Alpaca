@@ -19,7 +19,7 @@ export interface MarketSignal {
 }
 
 export interface AgentVote {
-  agent: 'regime' | 'volatility' | 'catalyst' | 'red_team';
+  agent: 'regime' | 'volatility' | 'catalyst' | 'memory' | 'red_team';
   approved: boolean;
   confidence: number;
   rationale: string;

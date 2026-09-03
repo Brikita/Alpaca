@@ -14,6 +14,7 @@ import { DEFAULT_RISK_POLICY } from '../lib/domain';
 import { MAX_OPEN_STRATEGIES, openPortfolio } from '../lib/portfolio-positions';
 import type { TradePerformance } from '../lib/performance-analytics';
 import type { StrategyReplay } from '../lib/replay';
+import type { DecisionMemory } from '../lib/decision-memory';
 
 const equityBars = [30, 34, 31, 42, 39, 47, 53, 49, 58, 61, 67, 63, 74, 79, 82, 88];
 const STARTING_EQUITY = 100_000;
@@ -124,6 +125,7 @@ export default function Home() {
   const [automation, setAutomation] = useState<AutomationStatus | null>(null);
   const [performance, setPerformance] = useState<TradePerformance | null>(null);
   const [replay, setReplay] = useState<StrategyReplay | null>(null);
+  const [memories, setMemories] = useState<DecisionMemory[]>([]);
   const [timeZoneLabel, setTimeZoneLabel] = useState<TimeZoneLabel>('EAT');
 
   useEffect(() => {
@@ -142,12 +144,13 @@ export default function Home() {
     let active = true;
     async function refreshDashboard() {
       try {
-        const [telemetryResponse, scanResponse, historyResponse, automationResponse, performanceResponse] = await Promise.all([
+        const [telemetryResponse, scanResponse, historyResponse, automationResponse, performanceResponse, memoryResponse] = await Promise.all([
           fetch('/api/telemetry', { cache: 'no-store' }),
           fetch('/api/scans', { cache: 'no-store' }),
           fetch('/api/history', { cache: 'no-store' }),
           fetch('/api/automation', { cache: 'no-store' }),
           fetch('/api/performance', { cache: 'no-store' }),
+          fetch('/api/memory', { cache: 'no-store' }),
         ]);
         if (!telemetryResponse.ok || !scanResponse.ok) throw new Error('Dashboard data unavailable');
         const telemetryPayload = (await telemetryResponse.json()) as { snapshot: AlpacaSnapshot | null };
@@ -161,6 +164,9 @@ export default function Home() {
         const performancePayload = performanceResponse.ok
           ? await performanceResponse.json() as { actual: TradePerformance; replay: StrategyReplay | null }
           : null;
+        const memoryPayload = memoryResponse.ok
+          ? await memoryResponse.json() as { memories: DecisionMemory[] }
+          : { memories: [] };
         if (active) {
           setSnapshot(telemetryPayload.snapshot);
           setScanBatch(scanPayload.batch);
@@ -173,6 +179,7 @@ export default function Home() {
           setAutomation(automationPayload);
           setPerformance(performancePayload?.actual ?? null);
           setReplay(performancePayload?.replay ?? null);
+          setMemories(memoryPayload.memories);
         }
       } catch {
         if (active) setTelemetryError(true);
@@ -204,7 +211,10 @@ export default function Home() {
   const underlyingOccupied = Boolean(leader && portfolio.underlyings.has(leader.symbol));
   const construction = leader ? constructPosition(leader) : null;
   const position = construction?.status === 'constructed' ? construction.position : null;
-  const councilVotes = position && leader ? runAgentCouncil(leader, position, scanBatch?.catalyst) : [];
+  const leaderMemory = leader
+    ? memories.find((memory) => memory.symbol === leader.symbol && memory.generatedAt === scanBatch?.capturedAt)
+    : undefined;
+  const councilVotes = position && leader ? runAgentCouncil(leader, position, scanBatch?.catalyst, leaderMemory) : [];
   const proposalDecision = position && snapshot && !portfolioFull && !underlyingOccupied
     ? evaluateProposal({ ...toTradeProposal(position, councilVotes), correlationSlotsAfter: portfolio.entries.length + 1 }, {
         openRisk: portfolio.openRisk,
@@ -538,6 +548,19 @@ export default function Home() {
               ))}
             </div>
           </article>
+          <article className="catalyst-card memory-card">
+            <div>
+              <p className="eyebrow">D1-BACKED DECISION MEMORY</p>
+              <h3>Memory agent: {leaderMemory?.status.replace('_', ' ').toUpperCase() ?? 'WAITING'}</h3>
+              <p>{leaderMemory?.rationale ?? 'Two matching open-market scans are required before memory can approve a paper proposal.'}</p>
+            </div>
+            <dl className="memory-metrics">
+              <div><dt>Confirmations</dt><dd>{leaderMemory ? `${leaderMemory.confirmations} / ${leaderMemory.observations}` : '—'}</dd></div>
+              <div><dt>Agreement</dt><dd>{leaderMemory?.agreementRatio === null || leaderMemory?.agreementRatio === undefined ? '—' : `${Math.round(leaderMemory.agreementRatio * 100)}%`}</dd></div>
+              <div><dt>Lookback</dt><dd>{leaderMemory ? `${leaderMemory.lookbackMinutes} min` : '—'}</dd></div>
+              <div><dt>Median spread</dt><dd>{leaderMemory?.medianSpreadPct === null || leaderMemory?.medianSpreadPct === undefined ? '—' : `${(leaderMemory.medianSpreadPct * 100).toFixed(2)}%`}</dd></div>
+            </dl>
+          </article>
         </section>
 
         <footer className="statusbar">
@@ -586,7 +609,7 @@ export default function Home() {
             )}
             {proposalDecision && (
               <>
-                <p className="trace-summary"><b>Specialist council.</b> Regime and volatility agents must approve, verified Alpaca news must be catalyst-clear, and the red team retains veto authority.</p>
+                <p className="trace-summary"><b>Five-specialist council.</b> Regime and volatility assess the setup, verified Alpaca news must be catalyst-clear, recent D1 history must confirm the pattern, and the red team retains veto authority.</p>
                 <div className="gate-list">
                   {councilVotes.map((vote, index) => {
                     const abstained = !vote.approved && vote.agent !== 'red_team';

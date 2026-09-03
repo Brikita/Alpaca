@@ -11,6 +11,7 @@ const safeProposal: TradeProposal = {
     { agent: 'regime', approved: true, confidence: 0.82, rationale: 'Range-bound' },
     { agent: 'volatility', approved: true, confidence: 0.78, rationale: 'IV rich' },
     { agent: 'catalyst', approved: true, confidence: 0.8, rationale: 'Verified news is clear' },
+    { agent: 'memory', approved: true, confidence: 1, rationale: 'Two recent scans agree' },
     { agent: 'red_team', approved: true, confidence: 0.71, rationale: 'Risk is defined' },
   ],
 };
@@ -52,4 +53,16 @@ test('blocks the proposal when the verified catalyst agent vetoes it', () => {
   );
   assert.equal(result.approved, false);
   assert.equal(result.gates.find((item) => item.id === 'council')?.passed, false);
+});
+
+test('blocks the proposal when recent analysis does not confirm the setup', () => {
+  const votes = safeProposal.votes.map((vote) => vote.agent === 'memory'
+    ? { ...vote, approved: false, rationale: 'Only one matching scan' }
+    : vote);
+  const result = evaluateProposal(
+    { ...safeProposal, votes },
+    { openRisk: 0, openPositions: 0, dailyDrawdown: 0, competitionDrawdown: 0 },
+  );
+  assert.equal(result.approved, false);
+  assert.match(result.gates.find((item) => item.id === 'council')?.detail ?? '', /memory blocked/);
 });

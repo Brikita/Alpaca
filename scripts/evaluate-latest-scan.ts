@@ -5,6 +5,7 @@ import { constructPosition, toTradeProposal } from '../lib/position-constructor.
 import { evaluateProposal } from '../lib/risk-governor.ts';
 import type { PaperOrderEvent } from '../lib/paper-order.ts';
 import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
+import type { DecisionMemory } from '../lib/decision-memory.ts';
 
 function privateHeaders(): Record<string, string> {
   const token = process.env.VOLGUARD_SITES_BYPASS_TOKEN;
@@ -24,10 +25,12 @@ try {
 
   const orderEventUrl = process.env.VOLGUARD_ORDER_EVENT_URL
     ?? new URL('/api/order-events', scanUrl).toString();
-  const [{ snapshot }, { batch }, { events }] = await Promise.all([
+  const memoryUrl = new URL('/api/memory', scanUrl).toString();
+  const [{ snapshot }, { batch }, { events }, { memories }] = await Promise.all([
     readJson<{ snapshot: AlpacaSnapshot | null }>(telemetryUrl),
     readJson<{ batch: OptionScanBatch | null }>(scanUrl),
     readJson<{ events: PaperOrderEvent[] }>(orderEventUrl),
+    readJson<{ memories: DecisionMemory[] }>(memoryUrl),
   ]);
   if (!snapshot || !batch) throw new Error('The hosted account snapshot and option scan are required.');
   const portfolio = openPortfolio(events);
@@ -36,12 +39,13 @@ try {
   const leader = batch.scans.find((scan) => scan.symbol === batch.leaderSymbol);
   if (!leader) throw new Error('The latest scan has no leader.');
   if (portfolio.underlyings.has(leader.symbol)) throw new Error(`A ${leader.symbol} strategy is already open.`);
+  const memory = memories.find((item) => item.symbol === leader.symbol && item.generatedAt === batch.capturedAt);
 
   const construction = constructPosition(leader);
   if (construction.status === 'blocked') {
     process.stdout.write(`${JSON.stringify({ leader: leader.symbol, signalStatus: leader.status, construction }, null, 2)}\n`);
   } else {
-    const votes = runAgentCouncil(leader, construction.position);
+    const votes = runAgentCouncil(leader, construction.position, batch.catalyst, memory);
     const proposal = { ...toTradeProposal(construction.position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
     const dailyDrawdown = Math.max(0, snapshot.account.previousEquity - snapshot.account.equity);
     const competitionDrawdown = Math.max(0, 100_000 - snapshot.account.equity);

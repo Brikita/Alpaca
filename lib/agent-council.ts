@@ -2,6 +2,7 @@ import { DEFAULT_RISK_POLICY, type AgentVote } from './domain.ts';
 import type { OptionScan } from './option-intelligence.ts';
 import type { ConstructedPosition } from './position-constructor.ts';
 import type { CatalystSnapshot } from './catalyst.ts';
+import type { DecisionMemory } from './decision-memory.ts';
 
 function checkPassed(scan: OptionScan, id: OptionScan['checks'][number]['id']): boolean {
   return scan.checks.find((check) => check.id === id)?.passed === true;
@@ -17,6 +18,7 @@ export function runAgentCouncil(
   scan: OptionScan,
   position: ConstructedPosition,
   catalyst?: CatalystSnapshot,
+  memory?: DecisionMemory,
 ): AgentVote[] {
   const regimeApproved = scan.status === 'candidate'
     && checkPassed(scan, 'session')
@@ -61,6 +63,13 @@ export function runAgentCouncil(
       confidence: catalyst?.status === 'clear' ? 0.75 : catalyst?.status === 'risk' ? 0.95 : 0,
       rationale: catalyst?.rationale
         ?? 'Verified Alpaca news is unavailable; the catalyst specialist fails closed.',
+    },
+    {
+      agent: 'memory',
+      approved: memory?.approved === true,
+      confidence: memory?.confidence ?? 0,
+      rationale: memory?.rationale
+        ?? 'Recent open-market scan history is unavailable; the memory specialist fails closed.',
     },
     {
       agent: 'red_team',

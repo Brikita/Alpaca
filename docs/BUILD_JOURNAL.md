@@ -336,3 +336,23 @@ These changes close the gap between a working trading loop and a credible produc
 ### Why
 
 The earlier broad UTC safety band correctly prevented orders after the close, but it still consumed a GitHub Actions run every five minutes. The Worker now performs the cheap time-zone check first and skips the expensive workflow outside the regular session.
+
+## 2026-09-02 — Decision Memory becomes an execution gate
+
+### What changed
+
+- Added a fifth specialist that derives memory from the existing append-only D1 option-scan history.
+- Added a public, sanitized `/api/memory` evidence endpoint and a responsive dashboard card showing confirmations, agreement, lookback, median spread, and the exact rationale.
+- Required at least two matching open-market observations within 60 minutes and at least 60% agreement on symbol, strategy, and direction.
+- Wired the timestamp-matched memory verdict into both the evaluation runner and paper execution runner; missing or conflicting memory now blocks the council gate.
+- Added tests for confirmed, isolated, conflicting, and closed-market histories.
+
+### Why and routine impact
+
+Previous scans are now an active input rather than passive journal material. The first appearance of a setup becomes a watch condition; a later scan can confirm it, while conflicting or closed-market evidence cannot authorize execution. This adds roughly one entry-cycle of deliberate confirmation at the current ten-minute cadence and makes the tradeoff visible to both the operator and judges.
+
+### Verification
+
+- Seventy-three automated tests pass.
+- TypeScript and lint pass.
+- The historical September 1 GLD fill is described as predating this new gate; no retrospective memory approval is claimed.
