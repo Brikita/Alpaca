@@ -14,6 +14,7 @@ import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
 import { alertKey, writeWorkflowOutputs } from '../lib/workflow-output.ts';
 import type { DecisionMemory } from '../lib/decision-memory.ts';
 import { evidenceAgeSeconds } from '../lib/evidence-time.ts';
+import { requireAutomationPermission } from '../lib/automation-client.ts';
 
 const STARTING_EQUITY = 100_000;
 const MAX_EVIDENCE_AGE_SECONDS = 60;
@@ -137,6 +138,7 @@ try {
     }
   }
 
+  await requireAutomationPermission('entry');
   requireFreshExecutionEvidence();
   const preview = await runPaperOrder(position, batch.capturedAt, votes, decision, true);
   await publish(preview);
@@ -146,6 +148,7 @@ try {
     workflowResult = { result: 'previewed', alertKey: 'execution-locked', message: 'Paper submission remains locked.' };
     process.stdout.write('Paper submission remains locked. Set VOLGUARD_EXECUTION_ENABLED=paper for one deliberate run.\n');
   } else {
+    await requireAutomationPermission('entry');
     requireFreshExecutionEvidence();
     try {
       const submitted = await runPaperOrder(position, batch.capturedAt, votes, decision, false, process.env);

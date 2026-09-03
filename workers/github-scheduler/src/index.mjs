@@ -2,31 +2,21 @@ import { DurableObject } from "cloudflare:workers";
 import {
   corsHeaders,
   dispatchWorkflow,
+  dispatchPlan,
   isRegularMarketDispatchWindow,
   secureEqual,
-  shouldRunEntry,
-  shouldRunReplay,
 } from "./core.mjs";
+import { changeAutomationControl, normalizeStoredControl } from "./control.mjs";
 
 const CONTROL_NAME = "paper-trading";
 
 export class AutomationControl extends DurableObject {
   async getStatus() {
-    return (await this.ctx.storage.get("status")) ?? {
-      paused: false,
-      reason: "Automation is scheduled.",
-      updatedAt: null,
-      updatedBy: "system-default",
-    };
+    return normalizeStoredControl(await this.ctx.storage.get("status"));
   }
 
-  async setPaused(paused, reason, updatedBy) {
-    const status = {
-      paused: Boolean(paused),
-      reason: String(reason || (paused ? "Emergency pause requested." : "Automation resumed.")),
-      updatedAt: new Date().toISOString(),
-      updatedBy: String(updatedBy || "authenticated-operator"),
-    };
+  async setControl(action, reason, updatedBy, runId) {
+    const status = changeAutomationControl(await this.getStatus(), action, reason, updatedBy, runId);
     await this.ctx.storage.put("status", status);
     return status;
   }
@@ -43,6 +33,30 @@ function json(payload, init = {}) {
   return new Response(JSON.stringify(payload), { ...init, headers });
 }
 
+async function readBoundedJson(request, maxBytes = 4096) {
+  const length = Number(request.headers.get('Content-Length') ?? 0);
+  if (Number.isFinite(length) && length > maxBytes) throw new RangeError('Payload too large.');
+  if (!request.body) throw new SyntaxError('Missing body.');
+  const reader = request.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw new RangeError('Payload too large.');
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
 const worker = {
   async scheduled(controller, env) {
     if (!isRegularMarketDispatchWindow(controller.scheduledTime)) {
@@ -55,17 +69,17 @@ const worker = {
       return;
     }
     const automation = await control(env).getStatus();
-    if (automation.paused) {
+    const plan = dispatchPlan(controller.scheduledTime, automation);
+    if (!plan.dispatch) {
       console.log(JSON.stringify({
         event: "github_workflow_dispatch_skipped",
-        reason: "automation_paused",
+        reason: plan.reason,
         scheduledAt: new Date(controller.scheduledTime).toISOString(),
         automation,
       }));
       return;
     }
-    const runEntry = shouldRunEntry(controller.scheduledTime);
-    const runReplay = shouldRunReplay(controller.scheduledTime);
+    const { runEntry, runReplay } = plan;
     const result = await dispatchWorkflow(env, {
       run_entry: String(runEntry),
       run_replay: String(runReplay),
@@ -92,6 +106,7 @@ const worker = {
       return json({
         ...status,
         mode: "paper",
+        observedAt: new Date().toISOString(),
         exitCadenceMinutes: 5,
         entryCadenceMinutes: 10,
         dispatchWindow: "09:25-16:00 America/New_York weekdays",
@@ -111,17 +126,22 @@ const worker = {
 
     let body;
     try {
-      body = await request.json();
-    } catch {
+      body = await readBoundedJson(request);
+    } catch (error) {
+      if (error instanceof RangeError) return json({ error: "Payload too large." }, { status: 413, headers: cors });
       return json({ error: "Invalid JSON." }, { status: 400, headers: cors });
     }
-    if (body?.action !== "pause" && body?.action !== "resume") {
-      return json({ error: "Action must be pause or resume." }, { status: 422, headers: cors });
+    if (!["pause", "resume", "halt_all"].includes(body?.action)
+      || typeof body.reason !== "string" || !body.reason.trim() || body.reason.length > 240
+      || (body.actor !== undefined && (typeof body.actor !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(body.actor)))
+      || (body.runId !== undefined && (typeof body.runId !== "string" || !/^\d{1,30}$/.test(body.runId)))) {
+      return json({ error: "Choose pause, resume, or halt_all and provide a reason (1–240 characters)." }, { status: 422, headers: cors });
     }
-    const status = await control(env).setPaused(
-      body.action === "pause",
-      body.reason,
-      "github-actions-operator",
+    const status = await control(env).setControl(
+      body.action,
+      body.reason.trim(),
+      body.actor ? `workflow-reported:${body.actor}` : "authenticated-operator",
+      body.runId ?? null,
     );
     console.log(JSON.stringify({ event: "automation_control_changed", ...status }));
     return json(status, { headers: cors });

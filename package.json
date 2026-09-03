@@ -11,6 +11,7 @@
     "start": "vinext start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "test": "node --test --experimental-strip-types tests/*.test.*",
+    "test:scheduler": "node scripts/check-scheduler.mjs",
     "snapshot:alpaca": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/alpaca-snapshot.ts",
     "scan:options": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/option-scan.ts",
     "evaluate:latest": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/evaluate-latest-scan.ts",

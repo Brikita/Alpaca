@@ -15,6 +15,8 @@ import {
 import { openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
 import { collectMarketCalendar } from '../lib/market-calendar.ts';
 import { writeWorkflowOutputs } from '../lib/workflow-output.ts';
+import { requireAutomationPermission } from '../lib/automation-client.ts';
+import { evidenceAgeSeconds } from '../lib/evidence-time.ts';
 
 interface LatestOptionQuotesResponse {
   quotes?: Record<string, {
@@ -162,6 +164,12 @@ try {
       if (process.env.VOLGUARD_EXIT_ENABLED !== 'paper') {
         process.stdout.write('Paper exit submission remains locked. Set VOLGUARD_EXIT_ENABLED=paper for one deliberate run.\n');
       } else {
+        await requireAutomationPermission('exit');
+        if (evidenceAgeSeconds(snapshot.capturedAt) > 60
+          || evidenceAgeSeconds(snapshot.market.timestamp) > 60
+          || evidenceAgeSeconds(evaluation.evaluatedAt) + evaluation.quoteAgeSeconds > 60) {
+          throw new Error('Exit evidence expired during preview; fresh quotes and account state are required.');
+        }
         try {
           const submitted = await runPaperExit(entry, evaluation, false, process.env);
           submittedAnyExit = true;

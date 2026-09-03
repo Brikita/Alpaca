@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: Emergency control action
+        description: Pause new entries, resume, or halt ALL automation (including exits)
         required: true
         type: choice
         options:
           - pause
           - resume
+          - halt_all
       reason:
         description: Audit reason for the state change
         required: true
@@ -30,6 +31,8 @@ jobs:
           CONTROL_TOKEN: ${{ secrets.VOLGUARD_CONTROL_TOKEN }}
           ACTION: ${{ inputs.action }}
           REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
+          RUN_ID: ${{ github.run_id }}
         shell: bash
         run: |
           test -n "$CONTROL_URL"
@@ -38,5 +41,5 @@ jobs:
             --request POST \
             --header "Authorization: Bearer $CONTROL_TOKEN" \
             --header 'Content-Type: application/json' \
-            --data "$(jq --null-input --arg action "$ACTION" --arg reason "$REASON" '{action:$action,reason:$reason}')" \
+            --data "$(jq --null-input --arg action "$ACTION" --arg reason "$REASON" --arg actor "$ACTOR" --arg runId "$RUN_ID" '{action:$action,reason:$reason,actor:$actor,runId:$runId}')" \
             "$CONTROL_URL/control"

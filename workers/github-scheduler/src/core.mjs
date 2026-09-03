@@ -1,4 +1,5 @@
 const GITHUB_API_VERSION = "2022-11-28";
+import { normalizeStoredControl } from "./control.mjs";
 const NEW_YORK_CLOCK = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
   weekday: "short",
@@ -32,6 +33,14 @@ export function shouldRunReplay(scheduledTime) {
   return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(parts.weekday)
     && minutes >= 9 * 60 + 25
     && minutes < 9 * 60 + 30;
+}
+
+export function dispatchPlan(scheduledTime, storedControl) {
+  const control = normalizeStoredControl(storedControl);
+  if (!isRegularMarketDispatchWindow(scheduledTime)) return { dispatch: false, reason: "outside_regular_market_window" };
+  if (control.haltAll) return { dispatch: false, reason: "all_automation_halted" };
+  return { dispatch: true, runEntry: !control.entriesPaused && shouldRunEntry(scheduledTime),
+    runReplay: shouldRunReplay(scheduledTime) };
 }
 
 export async function secureEqual(left, right) {

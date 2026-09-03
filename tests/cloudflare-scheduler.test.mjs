@@ -4,11 +4,13 @@ import test from "node:test";
 import {
   corsHeaders,
   dispatchWorkflow,
+  dispatchPlan,
   isRegularMarketDispatchWindow,
   newYorkClockParts,
   shouldRunReplay,
   shouldRunEntry,
 } from "../workers/github-scheduler/src/core.mjs";
+import { changeAutomationControl, normalizeStoredControl } from "../workers/github-scheduler/src/control.mjs";
 
 const env = {
   GITHUB_OWNER: "Brikita",
@@ -43,6 +45,17 @@ test("selects every other five-minute trigger for the entry cycle", () => {
   assert.equal(shouldRunEntry(Date.parse("2026-09-02T13:07:00Z")), false);
   assert.equal(shouldRunEntry(Date.parse("2026-09-02T13:12:00Z")), true);
   assert.equal(shouldRunEntry(Date.parse("2026-09-02T13:17:00Z")), false);
+});
+
+test("entry pause keeps five-minute exit dispatches while an explicit full halt stops dispatch", () => {
+  const now = Date.parse("2026-09-03T14:02:00Z");
+  const active = normalizeStoredControl(undefined);
+  assert.deepEqual(dispatchPlan(now, active), { dispatch: true, runEntry: true, runReplay: false });
+  assert.deepEqual(dispatchPlan(now, changeAutomationControl(active, 'pause', 'Review')),
+    { dispatch: true, runEntry: false, runReplay: false });
+  assert.deepEqual(dispatchPlan(now, changeAutomationControl(active, 'halt_all', 'Emergency')),
+    { dispatch: false, reason: 'all_automation_halted' });
+  assert.equal(dispatchPlan(now, { paused: true }).dispatch, false);
 });
 
 test("dispatches only inside the weekday New York regular-session window", () => {
