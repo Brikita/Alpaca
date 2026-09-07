@@ -13,6 +13,7 @@ import {
   type StockSnapshot,
   type ScanInput,
 } from './option-intelligence.ts';
+import { DEFAULT_OPTION_UNIVERSE } from './option-universe.ts';
 
 interface AlpacaClockResponse {
   is_open?: boolean;
@@ -22,7 +23,7 @@ interface BarsResponse {
   bars?: PriceBar[];
 }
 
-export const DEFAULT_OPTION_UNIVERSE = ['SPY', 'QQQ', 'IWM', 'GLD'] as const;
+export { DEFAULT_OPTION_UNIVERSE } from './option-universe.ts';
 
 export function describeCollectorError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);

@@ -6,12 +6,13 @@ import { usePathname } from 'next/navigation';
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot';
 import { runAgentCouncil } from '../lib/agent-council';
 import type { DecisionHistoryItem } from '../lib/decision-history';
-import type { OptionScan, OptionScanBatch } from '../lib/option-intelligence';
+import { chooseScanLeader, type OptionScan, type OptionScanBatch } from '../lib/option-intelligence';
+import { DEFAULT_OPTION_UNIVERSE } from '../lib/option-universe';
 import type { PaperOrderEvent } from '../lib/paper-order';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor';
 import { evaluateProposal } from '../lib/risk-governor';
 import { DEFAULT_RISK_POLICY } from '../lib/domain';
-import { MAX_OPEN_STRATEGIES, openPortfolio } from '../lib/portfolio-positions';
+import { correlationSlotsAfter, MAX_OPEN_STRATEGIES, openPortfolio } from '../lib/portfolio-positions';
 import type { TradePerformance } from '../lib/performance-analytics';
 import type { StrategyReplay } from '../lib/replay';
 import type { DecisionMemory } from '../lib/decision-memory';
@@ -185,11 +186,16 @@ export default function Home() {
     accountFresh && snapshot && snapshot.account.status === 'ACTIVE'
       && !snapshot.account.accountBlocked && !snapshot.account.tradingBlocked && !snapshot.account.suspendedByUser,
   );
-  const leader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
-  const passedSignalChecks = leader?.checks.filter((check) => check.passed).length ?? 0;
-  const candidate = leader?.status === 'candidate';
   const portfolio = openPortfolio(tradeHistory);
   const portfolioFull = portfolio.entries.length >= MAX_OPEN_STRATEGIES;
+  const rawLeader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
+  const availableCandidateSymbol = scanBatch
+    ? chooseScanLeader(scanBatch.scans.filter((scan) =>
+        scan.status === 'candidate' && !portfolio.underlyings.has(scan.symbol)))
+    : null;
+  const leader = scanBatch?.scans.find((scan) => scan.symbol === availableCandidateSymbol) ?? rawLeader;
+  const passedSignalChecks = leader?.checks.filter((check) => check.passed).length ?? 0;
+  const candidate = leader?.status === 'candidate';
   const underlyingOccupied = Boolean(leader && portfolio.underlyings.has(leader.symbol));
   const construction = leader ? constructPosition(leader) : null;
   const position = construction?.status === 'constructed' && leader
@@ -199,8 +205,11 @@ export default function Home() {
     ? memories.find((memory) => memory.symbol === leader.symbol && memory.generatedAt === scanBatch?.capturedAt)
     : undefined;
   const councilVotes = position && leader ? runAgentCouncil(leader, position, scanBatch?.catalyst, leaderMemory) : [];
-  const proposalDecision = position && snapshot && accountReady && scanFresh && !historyError && !portfolioFull && !underlyingOccupied
-    ? evaluateProposal({ ...toTradeProposal(position, councilVotes), correlationSlotsAfter: portfolio.entries.length + 1 }, {
+  const proposalDecision = position && leader && snapshot && accountReady && scanFresh && !historyError && !portfolioFull && !underlyingOccupied
+    ? evaluateProposal({
+        ...toTradeProposal(position, councilVotes),
+        correlationSlotsAfter: correlationSlotsAfter(portfolio.entries, leader.symbol),
+      }, {
         openRisk: portfolio.openRisk,
         openPositions: portfolio.entries.length,
         dailyDrawdown,
@@ -210,7 +219,7 @@ export default function Home() {
   const decisionHeading = leader
     ? candidate
       ? portfolioFull
-        ? `${leader.symbol} scan held because the two-strategy portfolio is full`
+        ? `${leader.symbol} scan held because the ${MAX_OPEN_STRATEGIES}-strategy portfolio is full`
         : !accountFresh || !scanFresh
         ? `${leader.symbol} analysis needs fresh evidence before execution`
         : construction?.status === 'blocked'
@@ -340,9 +349,9 @@ export default function Home() {
               {' '}{position && proposalDecision
                 ? `${position.optimized ? 'The optimizer selected covered legs whose' : 'Exact legs'} conservative prices imply ${money(position.maxLoss)} maximum loss${position.maxProfit === null ? '' : ` and ${money(position.maxProfit)} maximum expiration profit`}; the proposal passed ${proposalDecision.passed}/${proposalDecision.total} portfolio gates.`
                 : portfolioFull
-                  ? 'Two paper strategies are already open, so VolGuard blocks new entries while continuing to monitor each lifecycle independently.'
+                  ? `${MAX_OPEN_STRATEGIES} paper strategies are already open, so VolGuard blocks new entries while continuing to monitor each lifecycle independently.`
                   : underlyingOccupied
-                    ? `VolGuard allows a second strategy, but not another ${leader?.symbol} position; this prevents stacking exposure on one underlying.`
+                    ? `VolGuard allows up to ${MAX_OPEN_STRATEGIES} strategies, but not another ${leader?.symbol} position; this prevents stacking exposure on one underlying.`
                 : 'Risk sizing waits for concrete option legs and a defined maximum loss.'}
             </p>
 
@@ -356,7 +365,7 @@ export default function Home() {
                 </div>
                 );
               })}
-              {!scanBatch && <div className="agent waiting-scan"><div className="agent-icon">·</div><div><small>SCAN UNIVERSE</small><b>SPY · QQQ · IWM · GLD</b><p>No synthetic market data is shown</p></div></div>}
+              {!scanBatch && <div className="agent waiting-scan"><div className="agent-icon">·</div><div><small>SCAN UNIVERSE</small><b>{DEFAULT_OPTION_UNIVERSE.join(' · ')}</b><p>No synthetic market data is shown</p></div></div>}
             </div>
 
             <div className="decision-foot">
@@ -443,6 +452,23 @@ export default function Home() {
               <p>{latestTradeEvent
                 ? latestTradeEvent.message
                 : 'The execution journal is ready, but no order event has been recorded.'} The latest read-only Alpaca snapshot reports {snapshot ? snapshot.openOrders.length : '—'} open orders and {snapshot ? snapshot.positions.length : '—'} positions.</p>
+              {!!portfolio.entries.length && (
+                <>
+                  <div className="history-head portfolio-ledger-head">
+                    <strong>Open strategy ledger</strong>
+                    <small>{portfolio.entries.length} / {MAX_OPEN_STRATEGIES} slots · {money(portfolio.openRisk, 0)} defined risk</small>
+                  </div>
+                  <div className="trade-event-list portfolio-ledger">
+                    {portfolio.entries.map((entry) => (
+                      <div key={entry.clientOrderId}>
+                        <span className="trade-event-status reconciled">OPEN</span>
+                        <strong>{entry.symbol} · {strategyLabel(entry.strategy)}</strong>
+                        <small>{historyTimeLabel(entry.recordedAt, TIME_ZONES[timeZoneLabel])} {timeZoneLabel} · {money(entry.maxLoss, 0)} max loss · {entry.legs.length} legs</small>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
               {latestExitEvent?.exit && (
                 <dl className="exit-policy">
                   <div><dt>Conservative close</dt><dd>{money(latestExitEvent.exit.closeCredit)} credit</dd></div>

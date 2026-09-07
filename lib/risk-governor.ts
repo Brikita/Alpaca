@@ -37,6 +37,10 @@ export function evaluateProposal(
     && typeof proposal.maxProfit === 'number' && Number.isFinite(proposal.maxProfit)
     ? proposal.maxProfit / proposal.maxLoss
     : null;
+  const competitionRiskRunway = nonnegative(portfolio.competitionDrawdown)
+    ? Math.max(0, policy.maxCompetitionDrawdown - portfolio.competitionDrawdown)
+    : Number.NaN;
+  const effectiveOpenRiskLimit = Math.min(policy.maxOpenRisk, competitionRiskRunway);
 
   const gates: GateResult[] = [
     gate('paper', 'Paper account only', proposal.paperAccount, proposal.paperAccount ? 'Paper mode verified' : 'Live account blocked'),
@@ -52,7 +56,12 @@ export function evaluateProposal(
         ? `Finite maximum profit required · ${policy.minRewardRiskRatio.toFixed(2)}x minimum`
         : `${rewardRiskRatio.toFixed(2)}x / ${policy.minRewardRiskRatio.toFixed(2)}x minimum`,
     ),
-    gate('portfolio-risk', 'Portfolio risk', nonnegative(portfolio.openRisk) && portfolio.openRisk + proposal.maxLoss <= policy.maxOpenRisk, `$${portfolio.openRisk + proposal.maxLoss} / $${policy.maxOpenRisk}`),
+    gate(
+      'portfolio-risk',
+      'Portfolio risk',
+      nonnegative(portfolio.openRisk) && portfolio.openRisk + proposal.maxLoss <= effectiveOpenRiskLimit,
+      `$${portfolio.openRisk + proposal.maxLoss} / $${effectiveOpenRiskLimit} drawdown-adjusted capacity`,
+    ),
     gate('position-capacity', 'Strategy capacity', Number.isInteger(portfolio.openPositions) && portfolio.openPositions >= 0 && portfolio.openPositions + 1 <= policy.maxOpenPositions, `${portfolio.openPositions + 1} / ${policy.maxOpenPositions} positions`),
     gate('daily-drawdown', 'Daily drawdown', nonnegative(portfolio.dailyDrawdown) && portfolio.dailyDrawdown <= policy.maxDailyDrawdown, `$${portfolio.dailyDrawdown} / $${policy.maxDailyDrawdown}`),
     gate('competition-drawdown', 'Competition drawdown', nonnegative(portfolio.competitionDrawdown) && portfolio.competitionDrawdown <= policy.maxCompetitionDrawdown, `$${portfolio.competitionDrawdown} / $${policy.maxCompetitionDrawdown}`),

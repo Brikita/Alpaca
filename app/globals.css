@@ -147,6 +147,8 @@ button, a { font: inherit; }
 .trade-history-card h3 { margin:0 0 8px; font-size:15px; font-weight:600; }
 .trade-history-card>p:not(.eyebrow) { margin:0; color:#777c74; font-size:10px; line-height:1.55; }
 .trade-event-list { margin:16px 0 4px; border-top:1px solid var(--line); }
+.portfolio-ledger-head { margin-top:18px; padding:12px 0; }
+.portfolio-ledger { margin-top:0; max-height:280px; overflow:auto; }
 .trade-event-list>div { padding:10px 0; display:grid; grid-template-columns:auto 1fr; align-items:center; gap:4px 8px; border-bottom:1px solid #e8e8e1; }
 .trade-event-list strong { min-width:0; overflow:hidden; font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
 .trade-event-list small { grid-column:1 / -1; color:#8c9088; font:8px/1.4 var(--font-geist-mono); }

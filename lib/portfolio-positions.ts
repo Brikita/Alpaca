@@ -1,7 +1,30 @@
 import type { SafePosition } from './alpaca-snapshot.ts';
+import { DEFAULT_RISK_POLICY } from './domain.ts';
 import type { PaperOrderEvent } from './paper-order.ts';
 
-export const MAX_OPEN_STRATEGIES = 2;
+export const MAX_OPEN_STRATEGIES = DEFAULT_RISK_POLICY.maxOpenPositions;
+
+export type ExposureGroup = 'broad-equity' | 'equity-sector' | 'metals' | 'rates' | 'energy' | 'other';
+
+const EXPOSURE_GROUPS: Readonly<Record<ExposureGroup, readonly string[]>> = {
+  'broad-equity': ['SPY', 'QQQ', 'IWM', 'DIA'],
+  'equity-sector': ['XLF', 'XLK', 'XLE'],
+  metals: ['GLD', 'SLV'],
+  rates: ['TLT'],
+  energy: ['USO'],
+  other: [],
+};
+
+export function exposureGroupForSymbol(symbol: string): ExposureGroup {
+  const normalized = symbol.trim().toUpperCase();
+  return (Object.entries(EXPOSURE_GROUPS)
+    .find(([, symbols]) => symbols.includes(normalized))?.[0] as ExposureGroup | undefined) ?? 'other';
+}
+
+export function correlationSlotsAfter(entries: PaperOrderEvent[], candidateSymbol: string): number {
+  const candidateGroup = exposureGroupForSymbol(candidateSymbol);
+  return entries.filter((entry) => exposureGroupForSymbol(entry.symbol) === candidateGroup).length + 1;
+}
 
 export interface OpenPortfolio {
   entries: PaperOrderEvent[];

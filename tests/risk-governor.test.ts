@@ -37,20 +37,47 @@ test('blocks a defined-risk structure whose reward is too small for its loss', (
 test('blocks a trade that breaches per-trade and portfolio limits', () => {
   const result = evaluateProposal(
     { ...safeProposal, maxLoss: 900 },
-    { openRisk: 900, openPositions: 1, dailyDrawdown: 180, competitionDrawdown: 0 },
+    { openRisk: 3_500, openPositions: 8, dailyDrawdown: 180, competitionDrawdown: 0 },
   );
   assert.equal(result.approved, false);
   assert.equal(result.gates.find((item) => item.id === 'trade-risk')?.passed, false);
   assert.equal(result.gates.find((item) => item.id === 'portfolio-risk')?.passed, false);
 });
 
-test('blocks a third strategy even when its dollar risk would fit', () => {
+test('allows a tenth diversified strategy when every risk bound still fits', () => {
+  const result = evaluateProposal(
+    { ...safeProposal, correlationSlotsAfter: 3 },
+    { openRisk: 3_500, openPositions: 9, dailyDrawdown: 0, competitionDrawdown: 0 },
+  );
+  assert.equal(result.approved, true);
+});
+
+test('blocks an eleventh strategy even when its dollar risk would fit', () => {
   const result = evaluateProposal(
     { ...safeProposal, maxLoss: 50 },
-    { openRisk: 500, openPositions: 2, dailyDrawdown: 0, competitionDrawdown: 0 },
+    { openRisk: 500, openPositions: 10, dailyDrawdown: 0, competitionDrawdown: 0 },
   );
   assert.equal(result.approved, false);
   assert.equal(result.gates.find((item) => item.id === 'position-capacity')?.passed, false);
+});
+
+test('blocks a fourth strategy in the same exposure cluster', () => {
+  const result = evaluateProposal(
+    { ...safeProposal, correlationSlotsAfter: 4 },
+    { openRisk: 900, openPositions: 3, dailyDrawdown: 0, competitionDrawdown: 0 },
+  );
+  assert.equal(result.approved, false);
+  assert.equal(result.gates.find((item) => item.id === 'correlation')?.passed, false);
+});
+
+test('reserves competition drawdown runway instead of risking the full portfolio cap after losses', () => {
+  const result = evaluateProposal(
+    safeProposal,
+    { openRisk: 3_500, openPositions: 8, dailyDrawdown: 200, competitionDrawdown: 200 },
+  );
+  assert.equal(result.approved, false);
+  assert.equal(result.gates.find((item) => item.id === 'portfolio-risk')?.passed, false);
+  assert.match(result.gates.find((item) => item.id === 'portfolio-risk')?.detail ?? '', /3800/);
 });
 
 test('blocks the proposal when the verified catalyst agent vetoes it', () => {

@@ -1,4 +1,4 @@
-import { DEFAULT_OPTION_UNIVERSE } from '../lib/option-scan.ts';
+import { DEFAULT_OPTION_UNIVERSE } from '../lib/option-universe.ts';
 import { collectStrategyReplay } from '../lib/replay.ts';
 import { publishStrategyReplay } from '../lib/telemetry-client.ts';
 

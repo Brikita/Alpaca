@@ -1,6 +1,6 @@
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot.ts';
 import { runAgentCouncil } from '../lib/agent-council.ts';
-import type { OptionScanBatch } from '../lib/option-intelligence.ts';
+import { chooseScanLeader, type OptionScanBatch } from '../lib/option-intelligence.ts';
 import {
   createPaperOrderEvent,
   reconcilePaperOrder,
@@ -9,7 +9,12 @@ import {
 } from '../lib/paper-order.ts';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
-import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
+import {
+  correlationSlotsAfter,
+  MAX_OPEN_STRATEGIES,
+  openPortfolio,
+  portfolioPositionsMatch,
+} from '../lib/portfolio-positions.ts';
 import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
 import { alertKey, writeWorkflowOutputs } from '../lib/workflow-output.ts';
 import type { DecisionMemory } from '../lib/decision-memory.ts';
@@ -94,7 +99,9 @@ try {
   if (snapshot.account.optionsTradingLevel < 3) throw new Error('Options level 3 is required for multi-leg orders.');
   const portfolio = openPortfolio(events);
   if (snapshot.openOrders.length > 0) hold('Open broker orders require reconciliation before a new proposal.');
-  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) hold('The two-strategy portfolio is full.');
+  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) {
+    hold(`The ${MAX_OPEN_STRATEGIES}-strategy portfolio is full.`);
+  }
   if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) {
     throw new Error('Broker option legs do not exactly match the VolGuard portfolio ledger.');
   }
@@ -104,12 +111,14 @@ try {
   if (batchAge > MAX_EVIDENCE_AGE_SECONDS || snapshotAge > MAX_EVIDENCE_AGE_SECONDS) {
     throw new Error('Account or scan evidence is stale, invalid, or future-dated; collect fresh evidence before execution.');
   }
-  const leader = batch.scans.find((scan) => scan.symbol === batch.leaderSymbol);
-  if (!leader || leader.status !== 'candidate') hold('The fresh scan produced no eligible leader.');
-  if (leader.capturedAt !== batch.capturedAt) hold('The candidate does not belong to the current evidence batch.');
-  if (portfolio.underlyings.has(leader.symbol)) {
-    hold(`A ${leader.symbol} strategy is already open; one position per underlying is enforced.`);
+  const availableCandidates = batch.scans.filter((scan) =>
+    scan.status === 'candidate' && !portfolio.underlyings.has(scan.symbol));
+  const selectedSymbol = chooseScanLeader(availableCandidates);
+  const leader = batch.scans.find((scan) => scan.symbol === selectedSymbol);
+  if (!leader || leader.status !== 'candidate') {
+    hold('The fresh scan produced no eligible candidate outside the currently held underlyings.');
   }
+  if (leader.capturedAt !== batch.capturedAt) hold('The candidate does not belong to the current evidence batch.');
   const memory = memories.find((item) => item.symbol === leader.symbol && item.generatedAt === batch.capturedAt);
 
   const construction = constructPosition(leader);
@@ -118,7 +127,10 @@ try {
   const currentQuoteAge = Math.ceil(originalQuoteAge + batchAge);
   const position = { ...construction.position, quoteAgeSeconds: currentQuoteAge };
   const votes = runAgentCouncil(leader, position, batch.catalyst, memory);
-  const proposal = { ...toTradeProposal(position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
+  const proposal = {
+    ...toTradeProposal(position, votes),
+    correlationSlotsAfter: correlationSlotsAfter(portfolio.entries, leader.symbol),
+  };
   const decision = evaluateProposal(proposal, {
     openRisk: portfolio.openRisk,
     openPositions: portfolio.entries.length,

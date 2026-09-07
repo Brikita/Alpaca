@@ -1,10 +1,15 @@
 import type { AlpacaSnapshot } from '../lib/alpaca-snapshot.ts';
 import { runAgentCouncil } from '../lib/agent-council.ts';
-import type { OptionScanBatch } from '../lib/option-intelligence.ts';
+import { chooseScanLeader, type OptionScanBatch } from '../lib/option-intelligence.ts';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor.ts';
 import { evaluateProposal } from '../lib/risk-governor.ts';
 import type { PaperOrderEvent } from '../lib/paper-order.ts';
-import { MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
+import {
+  correlationSlotsAfter,
+  MAX_OPEN_STRATEGIES,
+  openPortfolio,
+  portfolioPositionsMatch,
+} from '../lib/portfolio-positions.ts';
 import type { DecisionMemory } from '../lib/decision-memory.ts';
 
 function privateHeaders(): Record<string, string> {
@@ -34,11 +39,14 @@ try {
   ]);
   if (!snapshot || !batch) throw new Error('The hosted account snapshot and option scan are required.');
   const portfolio = openPortfolio(events);
-  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) throw new Error('The two-strategy portfolio is full.');
+  if (portfolio.entries.length >= MAX_OPEN_STRATEGIES) {
+    throw new Error(`The ${MAX_OPEN_STRATEGIES}-strategy portfolio is full.`);
+  }
   if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) throw new Error('Broker positions do not match the portfolio ledger.');
-  const leader = batch.scans.find((scan) => scan.symbol === batch.leaderSymbol);
-  if (!leader) throw new Error('The latest scan has no leader.');
-  if (portfolio.underlyings.has(leader.symbol)) throw new Error(`A ${leader.symbol} strategy is already open.`);
+  const selectedSymbol = chooseScanLeader(batch.scans.filter((scan) =>
+    scan.status === 'candidate' && !portfolio.underlyings.has(scan.symbol)));
+  const leader = batch.scans.find((scan) => scan.symbol === selectedSymbol);
+  if (!leader) throw new Error('The latest scan has no eligible candidate outside the currently held underlyings.');
   const memory = memories.find((item) => item.symbol === leader.symbol && item.generatedAt === batch.capturedAt);
 
   const construction = constructPosition(leader);
@@ -46,7 +54,10 @@ try {
     process.stdout.write(`${JSON.stringify({ leader: leader.symbol, signalStatus: leader.status, construction }, null, 2)}\n`);
   } else {
     const votes = runAgentCouncil(leader, construction.position, batch.catalyst, memory);
-    const proposal = { ...toTradeProposal(construction.position, votes), correlationSlotsAfter: portfolio.entries.length + 1 };
+    const proposal = {
+      ...toTradeProposal(construction.position, votes),
+      correlationSlotsAfter: correlationSlotsAfter(portfolio.entries, leader.symbol),
+    };
     const dailyDrawdown = Math.max(0, snapshot.account.previousEquity - snapshot.account.equity);
     const competitionDrawdown = Math.max(0, 100_000 - snapshot.account.equity);
     const decision = evaluateProposal(proposal, {
