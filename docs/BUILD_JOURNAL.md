@@ -386,3 +386,9 @@ Freshness is part of authorization, not decoration: an invalid date can no longe
 - Ninety-two automated tests pass before the release build.
 - The bundled Cloudflare Worker passes an isolated runtime test for token authentication, Durable Object control state, pause/halt/resume behavior, input validation, and CORS.
 - No broker request or GitHub dispatch occurs in those tests; live trading remains prohibited.
+
+## 2026-09-07 — Ten-strategy portfolio capacity
+
+VolGuard's paper portfolio ceiling increased from two to ten strategy lifecycles. The change deliberately did not multiply the old $500 risk allowance by ten: combined theoretical maximum loss is capped at $4,000 so it cannot exceed the existing competition drawdown boundary. One position per underlying remains mandatory, and a new exposure-cluster calculation limits broad-equity, sector, metals, rates, energy, and unknown-symbol concentration to three positions per cluster.
+
+The opportunity scanner now evaluates an eleven-ETF watchlist. When the top raw candidate is already held, entry evaluation moves to the next eligible unoccupied candidate instead of stopping the cycle. Portfolio reconstruction and exact broker-leg reconciliation were verified with a ten-strategy test fixture, and the dashboard now shows an open-strategy ledger sized for the new capacity. This is a paper-trading scalability experiment, not evidence of profitability or a requirement to fill all ten slots.

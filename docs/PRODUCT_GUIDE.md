@@ -50,7 +50,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 ### Real option intelligence scan
 
-**Purpose:** Read SPY, QQQ, IWM, and GLD market data through the authenticated Alpaca CLI, estimate a model move to the target Friday, measure the option-implied move from the nearest quoted call/put pair, and select a defined-risk strategy or abstain.
+**Purpose:** Read an eleven-ETF watchlist (SPY, QQQ, IWM, DIA, XLF, XLK, XLE, GLD, SLV, TLT, and USO) through the authenticated Alpaca CLI, estimate a model move to the target Friday, measure the option-implied move from the nearest quoted call/put pair, and select a defined-risk strategy or abstain.
 
 **Strengths:** Uses broker-sourced evidence rather than demo numbers; requests the subscription-compatible IEX feed for stock history; keeps raw chains and credentials local; records all six signal checks; fails closed when the market, history, quote pair, liquidity, freshness, or edge is inadequate.
 
@@ -76,9 +76,9 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Enforce the per-trade budget, create an auditable order preview, and explain why a market opportunity may still be unaffordable.
 
-**Current limitation:** Short-volatility iron-condor construction still fails closed. The two-strategy ledger supports diversification, but it deliberately refuses two positions on the same underlying.
+**Current limitation:** Short-volatility iron-condor construction still fails closed. The ten-strategy ledger supports diversification, but it deliberately refuses two positions on the same underlying.
 
-### Thirteen-gate risk governor
+### Fourteen-gate risk governor
 
 **Purpose:** Block any proposal that violates paper-only mode, defined-risk policy, exposure limits, liquidity requirements, quote freshness, or agent-consensus rules.
 
@@ -106,11 +106,11 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Uses:** Safe paper execution, reproducible demonstrations, and testing the complete signal-to-broker workflow.
 
-**Current limitation:** Paper fills can differ from live execution. The runner permits at most two reconciled strategy lifecycles, $500 maximum loss per strategy, $1,000 combined maximum risk, and one strategy per underlying. Any unmatched broker leg or open order blocks another proposal. The scheduled entry branch scans every ten minutes during the configured weekday window, but the Alpaca market clock and fresh-candidate checks remain the final session authority.
+**Current limitation:** Paper fills can differ from live execution. The runner permits at most ten reconciled strategy lifecycles, $500 maximum loss per strategy, $4,000 combined maximum risk, one strategy per underlying, and no more than three strategies in the same exposure cluster. The effective open-risk allowance shrinks as competition drawdown accumulates, preserving runway inside the same $4,000 boundary. Capacity is not a target: the dollar-risk, correlation, drawdown, liquidity, memory, and council gates can stop the portfolio before ten. Any unmatched broker leg or open order blocks another proposal. The scheduled entry branch scans every ten minutes during the configured weekday window, skips already-held underlyings, and evaluates the next eligible candidate; the Alpaca market clock and fresh-candidate checks remain the final session authority.
 
 ### Governed paper-position exits
 
-**Purpose:** Manage up to two filled debit spreads with independent precommitted profit, loss, and time rules rather than discretionary reactions to the account P&L.
+**Purpose:** Manage up to ten filled debit strategies with independent precommitted profit, loss, and time rules rather than discretionary reactions to the account P&L.
 
 **Strengths:** Reconstructs each exact entry from the durable journal; verifies the complete portfolio leg set against the broker; prices each closure conservatively at sell-bid and buy-ask; rejects quotes older than 60 seconds; dry-runs one atomic multi-leg close per triggered strategy; and uses a closing-only process lock that cannot authorize opening intents.
 
@@ -202,7 +202,7 @@ VolGuard links each outcome back to the original thesis, agent votes, risk gates
 
 **Purpose:** Separate actual reconciled paper outcomes from historical research evidence.
 
-**Strengths:** Actual statistics count filled closing reconciliations only and report realized P&L, win rate, expectancy, profit factor, and path drawdown. A daily one-year replay compares a deterministic underlying signal with buy-and-hold for SPY, QQQ, IWM, and GLD.
+**Strengths:** Actual statistics count filled closing reconciliations only and report realized P&L, win rate, expectancy, profit factor, and path drawdown. A daily one-year replay compares a deterministic underlying signal with buy-and-hold across the same eleven-ETF watchlist.
 
 **Uses:** Weekly process review, sample-size tracking, strategy calibration, and honest hackathon evidence.
 

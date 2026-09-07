@@ -201,3 +201,15 @@
 **Impact:** A 12/12-approved structure can reach the paper broker and produce sanitized preview, submission, and reconciliation events in the journal.
 
 **Trade-off:** The runner refuses a second proposal while positions or open orders exist, and it cannot yet automate exits or calculate portfolio-wide maximum risk.
+
+## ADR-021 — Scale strategy capacity inside a portfolio risk envelope
+
+**Status:** Accepted
+
+**Decision:** Permit up to ten simultaneous paper strategy lifecycles while retaining one strategy per underlying, a $500 per-strategy loss limit, a $4,000 combined maximum-risk ceiling, and no more than three positions in one exposure cluster. Expand the default watchlist to eleven ETFs and select the best eligible candidate that is not already held.
+
+**Reasoning:** A two-position ceiling prevented meaningful portfolio-management testing, but simply changing that number would concentrate correlated exposures and could make ten full-risk positions exceed the existing $4,000 competition drawdown boundary. The capacity, dollar risk, symbol diversity, candidate selection, monitoring, and dashboard ledger need to scale together.
+
+**Impact:** VolGuard can reconstruct, reconcile, display, and independently manage up to ten defined-risk paper strategies and as many as forty option legs. Ten is an operational ceiling rather than a target; any risk, evidence, liquidity, or council gate can stop entries earlier.
+
+**Trade-off:** The exposure groups are a transparent static heuristic rather than a live correlation matrix. The wider scan also increases market-data work per entry cycle, so workflow duration and broker rate limits must remain monitored.

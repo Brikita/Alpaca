@@ -37,7 +37,7 @@ Classify the session as ordinary, earnings-driven, macro-event, or abnormal-liqu
 
 ### 4. Scan a constrained universe
 
-Begin with SPY, QQQ, IWM, and GLD. GLD is the liquid, Alpaca-supported gold proxy; it is not the same instrument as spot XAUUSD.
+The automated paper watchlist is SPY, QQQ, IWM, DIA, XLF, XLK, XLE, GLD, SLV, TLT, and USO. GLD remains the gold proxy; it is not the same instrument as spot XAUUSD. Treat the ten-slot capacity as an upper bound, not a daily quota: portfolio risk and exposure clustering should usually leave some slots unused.
 
 **Reasoning:** A small liquid universe makes execution and attribution easier to evaluate.
 

@@ -20,7 +20,7 @@ Point to the paper-trading label, fresh account sync, market state, open-strateg
 
 **Narration:**
 
-“Every cycle scans SPY, QQQ, IWM, and GLD. The signal model compares recent realized movement with the live at-the-money options price, then checks the session, history, paired quotes, liquidity, freshness, and edge. If any check fails, VolGuard records an abstention. No synthetic market signal is substituted.”
+“Every cycle scans an eleven-ETF, multi-asset watchlist. The signal model compares recent realized movement with the live at-the-money options price, then checks the session, history, paired quotes, liquidity, freshness, and edge. If any check fails, VolGuard records an abstention. No synthetic market signal is substituted.”
 
 Open one decision trace only if current telemetry is visible. Point to exact contracts, council votes, and gate results.
 
@@ -28,7 +28,7 @@ Open one decision trace only if current telemetry is visible. Point to exact con
 
 **Narration:**
 
-“A candidate still cannot trade. The constructor chooses exact defined-risk legs and prices buys at the ask and sells at the bid. Five transparent specialists test regime, volatility, catalysts, recent decision memory, and failure modes. Memory requires two matching open-market scans in the last hour and can veto a first sighting or conflicting setup. Then fourteen deterministic gates enforce paper mode, covered shorts, expiry, payoff quality, quote quality, confidence, drawdown, capacity, and the loss budget. The agent can hold at most two strategies, five hundred dollars risk each, and one thousand dollars combined.”
+“A candidate still cannot trade. The constructor chooses exact defined-risk legs and prices buys at the ask and sells at the bid. Five transparent specialists test regime, volatility, catalysts, recent decision memory, and failure modes. Memory requires two matching open-market scans in the last hour and can veto a first sighting or conflicting setup. Then fourteen deterministic gates enforce paper mode, covered shorts, expiry, payoff quality, quote quality, confidence, drawdown, capacity, and the loss budget. The agent can track at most ten strategies, with five hundred dollars maximum risk per strategy, four thousand dollars combined, one per underlying, and no more than three in one exposure cluster.”
 
 ## 1:45–2:15 — Show slide 4, then Positions or Journal
 
