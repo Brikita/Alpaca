@@ -7,6 +7,7 @@ import {
   buildMlegOrderArgs,
   createPaperOrderEvent,
   createPaperExitEvent,
+  exitClientOrderId,
   paperClientOrderId,
   reconcilePaperExitEvent,
   reconcilePaperOrderEvent,
@@ -128,6 +129,16 @@ test('builds one atomic closing credit order with reversed intents', () => {
   assert.deepEqual(legs.map((leg: { position_intent: string }) => leg.position_intent), [
     'sell_to_close', 'buy_to_close',
   ]);
+});
+
+test('uses a distinct, bounded Alpaca client ID for each exit attempt', () => {
+  const entryId = paperClientOrderId(position, '2026-09-01T13:33:12.747Z');
+  const first = exitClientOrderId(entryId, '2026-09-03T19:00:00.000Z');
+  const retry = exitClientOrderId(entryId, '2026-09-03T19:05:00.000Z');
+  assert.notEqual(first, retry);
+  assert.equal(first.length <= 64, true);
+  assert.equal(first.startsWith('volguard-'), true);
+  assert.equal(exitClientOrderId(entryId, '2026-09-03T19:00:00.000Z'), first);
 });
 
 test('records exit monitoring and realized P&L without broker identifiers', () => {

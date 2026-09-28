@@ -114,8 +114,14 @@ export function buildMlegOrderArgs(
   return args;
 }
 
-export function exitClientOrderId(entryClientOrderId: string): string {
-  return `${entryClientOrderId}-exit`.slice(0, 64);
+export function exitClientOrderId(entryClientOrderId: string, evaluatedAt: string): string {
+  const timestamp = evaluatedAt.replace(/[^0-9]/g, '').slice(0, 17);
+  if (timestamp.length !== 17) throw new Error('A millisecond exit evaluation timestamp is required.');
+  const entryHash = [...entryClientOrderId].reduce(
+    (hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0,
+    2166136261,
+  ).toString(16).padStart(8, '0');
+  return `${entryClientOrderId.slice(0, 31)}-${entryHash}-exit-${timestamp}`;
 }
 
 export function buildMlegExitOrderArgs(
@@ -188,7 +194,7 @@ export function createPaperExitEvent(input: {
   const isMonitor = input.eventType === 'monitored';
   const clientOrderId = isMonitor
     ? input.entry.clientOrderId
-    : exitClientOrderId(input.entry.clientOrderId);
+    : exitClientOrderId(input.entry.clientOrderId, input.evaluation.evaluatedAt);
   return {
     ...input.entry,
     eventKey: isMonitor
@@ -248,7 +254,7 @@ export async function runPaperExit(
   dryRun: boolean,
   environment: AlpacaEnvironment = process.env,
 ): Promise<PaperOrderEvent> {
-  const clientOrderId = exitClientOrderId(entry.clientOrderId);
+  const clientOrderId = exitClientOrderId(entry.clientOrderId, evaluation.evaluatedAt);
   const result = await runAlpaca<AlpacaOrderResponse>(
     buildMlegExitOrderArgs(entry, evaluation, clientOrderId, dryRun),
     { ...environment, ALPACA_LIVE_TRADE: 'false' },
