@@ -81,16 +81,16 @@ jobs:
         run: npm run reconcile:orders
 
       - name: Refresh the sanitized paper account snapshot
-        if: ${{ inputs.run_entry }}
+        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && steps.monitor.outputs.result != 'reconciliation_required' }}
         run: npm run snapshot:alpaca
 
       - name: Scan fresh option opportunities
-        if: ${{ inputs.run_entry }}
+        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && steps.monitor.outputs.result != 'reconciliation_required' }}
         run: npm run scan:options
 
       - name: Submit only a fully approved paper entry
         id: entry
-        if: ${{ inputs.run_entry }}
+        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && steps.monitor.outputs.result != 'reconciliation_required' }}
         env:
           VOLGUARD_EXECUTION_ENABLED: 'paper'
         run: npm run execute:latest
@@ -119,6 +119,7 @@ jobs:
             const repo = context.repo.repo;
             const alerts = [];
             if (process.env.MONITOR_RESULT === 'failed') alerts.push({ severity: 'failure', key: process.env.MONITOR_KEY, message: process.env.MONITOR_MESSAGE });
+            if (process.env.MONITOR_RESULT === 'reconciliation_required') alerts.push({ severity: 'attention', key: process.env.MONITOR_KEY, message: process.env.MONITOR_MESSAGE });
             if (process.env.MONITOR_RESULT === 'exit_submitted') alerts.push({ severity: 'trade', key: process.env.MONITOR_KEY, message: process.env.MONITOR_MESSAGE });
             if (process.env.ENTRY_RESULT === 'failed' || process.env.ENTRY_RESULT === 'submitted' || process.env.ENTRY_RESULT === 'held') {
               alerts.push({ severity: process.env.ENTRY_RESULT === 'submitted' ? 'trade' : process.env.ENTRY_RESULT === 'held' ? 'hold' : 'failure', key: process.env.ENTRY_KEY, message: process.env.ENTRY_MESSAGE });

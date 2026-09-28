@@ -12,7 +12,7 @@ import {
   publishPaperOrderEvent,
   publishTelemetrySnapshot,
 } from '../lib/telemetry-client.ts';
-import { openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
+import { openPortfolio, portfolioPositionsMatch, portfolioReconciliationMessage } from '../lib/portfolio-positions.ts';
 import { collectMarketCalendar } from '../lib/market-calendar.ts';
 import { writeWorkflowOutputs } from '../lib/workflow-output.ts';
 import { requireAutomationPermission } from '../lib/automation-client.ts';
@@ -119,7 +119,10 @@ try {
     throw new Error('An open broker order already exists; reconcile it before creating an exit.');
   }
   if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) {
-    throw new Error('Broker option legs do not exactly match the VolGuard portfolio ledger.');
+    const message = portfolioReconciliationMessage(portfolio.entries, snapshot.positions);
+    process.stdout.write(`${message}\n`);
+    await writeWorkflowOutputs({ result: 'reconciliation_required', alertKey: 'portfolio-reconciliation-required', message });
+    process.exit(0);
   }
   if (portfolio.entries.length === 0) {
     process.stdout.write('No open VolGuard strategies require monitoring.\n');

@@ -67,7 +67,17 @@ export function portfolioPositionsMatch(entries: PaperOrderEvent[], positions: S
       expected.set(leg.symbol, (expected.get(leg.symbol) ?? 0) + signedQuantity);
     }
   }
-  const actualOptions = positions.filter((position) => position.assetClass === 'us_option');
-  if (actualOptions.length !== expected.size) return false;
-  return actualOptions.every((position) => expected.get(position.symbol) === position.quantity);
+  if (positions.length !== expected.size) return false;
+  return positions.every((position) => position.assetClass === 'us_option'
+    && expected.get(position.symbol) === position.quantity);
+}
+
+export function portfolioReconciliationMessage(entries: PaperOrderEvent[], positions: SafePosition[]): string {
+  const expectedLegs = entries.reduce((count, entry) => count + entry.legs.length, 0);
+  const actualOptionLegs = positions.filter((position) => position.assetClass === 'us_option').length;
+  const otherPositions = positions.filter((position) => position.assetClass !== 'us_option');
+  const otherSummary = otherPositions.length === 0
+    ? 'no non-option positions'
+    : otherPositions.map((position) => `${position.quantity} ${position.symbol} ${position.assetClass}`).join(', ');
+  return `Portfolio reconciliation required: ledger expects ${expectedLegs} option legs across ${entries.length} strategies; broker has ${actualOptionLegs} option legs and ${otherSummary}. Review broker activity, expiry, exercise, and assignment before resuming paper entries.`;
 }

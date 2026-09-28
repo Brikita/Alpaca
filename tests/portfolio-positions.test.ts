@@ -7,6 +7,7 @@ import {
   MAX_OPEN_STRATEGIES,
   openPortfolio,
   portfolioPositionsMatch,
+  portfolioReconciliationMessage,
 } from '../lib/portfolio-positions.ts';
 import { DEFAULT_OPTION_UNIVERSE } from '../lib/option-universe.ts';
 import type { PaperOrderEvent } from '../lib/paper-order.ts';
@@ -110,4 +111,11 @@ test('requires the complete broker option-leg set to match the portfolio ledger'
   }));
   assert.equal(portfolioPositionsMatch([first], positions), true);
   assert.equal(portfolioPositionsMatch([first], positions.slice(0, 1)), false);
+  const assignedStock: SafePosition = {
+    symbol: 'USO', assetClass: 'us_equity', quantity: 100, side: 'long',
+    marketValue: 15_000, costBasis: 15_465, unrealizedPnl: -465, unrealizedPnlPct: -0.03,
+  };
+  assert.equal(portfolioPositionsMatch([first], [...positions, assignedStock]), false);
+  assert.equal(portfolioPositionsMatch([], [assignedStock]), false);
+  assert.match(portfolioReconciliationMessage([first], [assignedStock]), /100 USO us_equity/);
 });
