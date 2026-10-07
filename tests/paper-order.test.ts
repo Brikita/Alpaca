@@ -14,6 +14,9 @@ import {
 } from '../lib/paper-order.ts';
 import type { ExitEvaluation } from '../lib/exit-policy.ts';
 import type { ConstructedPosition } from '../lib/position-constructor.ts';
+import { reconcileOptionSettlement } from '../lib/option-settlement.ts';
+import { openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions.ts';
+import { calculateTradePerformance } from '../lib/performance-analytics.ts';
 
 const position: ConstructedPosition = {
   id: 'GLD-2026-09-04-404-bear_put_spread', symbol: 'GLD',
@@ -40,6 +43,31 @@ const decision: RiskDecision = {
   approved: true, passed: 1, total: 1,
   gates: [{ id: 'all', label: 'All', passed: true, detail: 'Passed' }],
 };
+
+test('broker expiry removes the strategy and records lost premium exactly once', () => {
+  const entry = createPaperOrderEvent({eventType: 'reconciled', capturedAt: '2026-09-01T14:00:00Z',
+    recordedAt: '2026-09-01T14:00:00Z', position, votes, decision, brokerStatus: 'filled',
+    filledQuantity: 1, filledAveragePrice: 4.3, message: 'Filled'});
+  const activities = entry.legs.map((leg, index) => ({id: `expiry-${index}`, activity_type: 'OPEXP',
+    status: 'executed', symbol: leg.symbol, qty: index === 0 ? '-1' : '1', date: '2026-09-04'}));
+  const settled = reconcileOptionSettlement(entry, activities, new Set(), '2026-09-05T12:00:00Z')!;
+  assert.ok(isPaperOrderEvent(settled));
+  assert.equal(settled.settlement?.realizedPnl, -430);
+  assert.equal(openPortfolio([entry, settled]).entries.length, 0);
+  assert.equal(calculateTradePerformance([entry, settled, settled]).realizedPnl, -430);
+  assert.equal(reconcileOptionSettlement(entry, activities.slice(0, 1), new Set()), null);
+  assert.equal(reconcileOptionSettlement(entry, activities, new Set([entry.legs[0].symbol])), null);
+  assert.equal(reconcileOptionSettlement(entry, [{...activities[0], qty: '1'}, activities[1]], new Set()), null);
+  assert.equal(reconcileOptionSettlement(entry, activities, new Set(), '2026-09-03T12:00:00Z'), null);
+  assert.equal(isPaperOrderEvent({...settled, settlement: {...settled.settlement, activities: activities.slice(0, 1)}}), false);
+  const exercised = reconcileOptionSettlement(entry, [{...activities[0], activity_type: 'OPEXC'}, activities[1]], new Set())!;
+  assert.ok(isPaperOrderEvent(exercised));
+  assert.equal(exercised.settlement?.realizedPnl, null);
+  assert.equal(calculateTradePerformance([entry, exercised]).closedTrades, 0);
+  assert.equal(portfolioPositionsMatch(openPortfolio([entry, exercised]).entries, [{symbol: 'GLD',
+    assetClass: 'us_equity', quantity: 100, side: 'long', marketValue: 100, costBasis: 100,
+    unrealizedPnl: 0, unrealizedPnlPct: 0}]), false);
+});
 
 test('builds one atomic debit-limit mleg dry run with opening intents', () => {
   const id = paperClientOrderId(position, '2026-09-01T13:33:12.747Z');

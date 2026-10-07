@@ -72,13 +72,12 @@ jobs:
           chmod 600 "$HOME/.config/alpaca/profiles/paper.yaml" "$HOME/.config/alpaca/config.yaml"
           alpaca doctor
 
+      - name: Reconcile existing paper orders
+        run: npm run reconcile:orders
+
       - name: Evaluate the governed paper exit
         id: monitor
         run: npm run monitor:position
-
-      - name: Reconcile existing paper orders
-        if: always()
-        run: npm run reconcile:orders
 
       - name: Refresh the sanitized paper account snapshot
         if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && steps.monitor.outputs.result != 'reconciliation_required' }}

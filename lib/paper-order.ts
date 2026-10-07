@@ -13,6 +13,7 @@ export type PaperOrderEventType =
   | 'exit_previewed'
   | 'exit_submitted'
   | 'exit_rejected'
+  | 'settled'
   | 'exit_reconciled';
 
 export interface PaperExitEvidence {
@@ -58,6 +59,12 @@ export interface PaperOrderEvent {
   filledQuantity: number;
   filledAveragePrice: number | null;
   exit?: PaperExitEvidence;
+  settlement?: {
+    entryClientOrderId: string;
+    activities: Array<{ id: string; type: 'OPEXP' | 'OPEXC' | 'OPASN'; symbol: string; quantity: number; date: string }>;
+    outcome: 'expired' | 'exercise_or_assignment';
+    realizedPnl: number | null;
+  };
   message: string;
 }
 

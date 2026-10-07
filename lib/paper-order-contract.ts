@@ -18,7 +18,7 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
     || typeof value.eventKey !== 'string'
     || ![
       'previewed', 'submitted', 'rejected', 'reconciled', 'monitored',
-      'exit_previewed', 'exit_submitted', 'exit_rejected', 'exit_reconciled',
+      'exit_previewed', 'exit_submitted', 'exit_rejected', 'exit_reconciled', 'settled',
     ].includes(String(value.eventType))
     || typeof value.recordedAt !== 'string'
     || typeof value.proposalId !== 'string'
@@ -45,7 +45,32 @@ export function isPaperOrderEvent(value: unknown): value is PaperOrderEvent {
   )) return false;
   const isExitEvent = ['monitored', 'exit_previewed', 'exit_submitted', 'exit_rejected', 'exit_reconciled']
     .includes(String(value.eventType));
-  const isMaintenanceEvent = isExitEvent || value.eventType === 'reconciled';
+  const isMaintenanceEvent = isExitEvent || value.eventType === 'reconciled' || value.eventType === 'settled';
+  if (value.eventType === 'settled') {
+    const settlement = value.settlement;
+    if (!isRecord(settlement) || settlement.entryClientOrderId !== value.clientOrderId
+      || !['expired', 'exercise_or_assignment'].includes(String(settlement.outcome))
+      || !(settlement.realizedPnl === null || finite(settlement.realizedPnl))
+      || !Array.isArray(settlement.activities) || !settlement.activities.length
+      || !settlement.activities.every((row) => isRecord(row) && typeof row.id === 'string'
+        && ['OPEXP', 'OPEXC', 'OPASN'].includes(String(row.type))
+        && typeof row.symbol === 'string' && finite(row.quantity) && typeof row.date === 'string')
+    ) return false;
+    const rows = settlement.activities as Array<{ id: string; type: string; symbol: string; quantity: number; date: string }>;
+    const legs = value.legs as Array<{ symbol: string; positionIntent: string }>;
+    if (new Set(rows.map((row) => row.id)).size !== rows.length
+      || rows.some((row) => !legs.some((leg) => leg.symbol === row.symbol))
+      || !legs.every((leg) => {
+        const offset = leg.positionIntent === 'buy_to_open' ? -Number(value.quantity) :
+          leg.positionIntent === 'sell_to_open' ? Number(value.quantity) : NaN;
+        const matches = rows.filter((row) => row.symbol === leg.symbol);
+        return matches.length > 0 && matches.every((row) => Math.sign(row.quantity) === Math.sign(offset))
+          && matches.reduce((sum, row) => sum + row.quantity, 0) === offset;
+      })
+      || (settlement.outcome === 'expired') !== rows.every((row) => row.type === 'OPEXP')
+      || (settlement.outcome === 'exercise_or_assignment' && settlement.realizedPnl !== null)
+    ) return false;
+  }
   if (value.schemaVersion === 1) {
     // Only lifecycle maintenance may ingest legacy evidence; new entries use v2.
     if (!isMaintenanceEvent

@@ -19,14 +19,14 @@ function round(value: number): number {
 
 export function calculateTradePerformance(events: PaperOrderEvent[]): TradePerformance {
   const closed = [...new Map(events
-    .filter((event) => event.eventType === 'exit_reconciled'
+    .filter((event) => (event.eventType === 'settled' && event.settlement?.realizedPnl != null) || (event.eventType === 'exit_reconciled'
       && event.brokerStatus === 'filled'
       && event.filledQuantity > 0
       && event.exit?.realizedPnl !== null
-      && event.exit?.realizedPnl !== undefined)
-    .map((event) => [event.exit!.entryClientOrderId, event])).values()]
+      && event.exit?.realizedPnl !== undefined))
+    .map((event) => [event.settlement?.entryClientOrderId ?? event.exit!.entryClientOrderId, event])).values()]
     .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt));
-  const pnls = closed.map((event) => event.exit!.realizedPnl!);
+  const pnls = closed.map((event) => event.settlement?.realizedPnl ?? event.exit!.realizedPnl!);
   const wins = pnls.filter((value) => value > 0);
   const losses = pnls.filter((value) => value < 0);
   let equity = 0;

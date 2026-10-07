@@ -6,6 +6,8 @@ import {
   type PaperOrderEvent,
 } from '../lib/paper-order.ts';
 import { publishPaperOrderEvent } from '../lib/telemetry-client.ts';
+import { openPortfolio } from '../lib/portfolio-positions.ts';
+import { reconcileOptionSettlement, type BrokerActivity } from '../lib/option-settlement.ts';
 
 function configuration(): {
   endpoint: string;
@@ -69,6 +71,32 @@ try {
       filledAveragePrice: reconciled.filledAveragePrice,
     })}\n`);
     published += 1;
+    events.push(reconciled);
+  }
+  const entries = openPortfolio(events).entries;
+  if (entries.length) {
+    const positions = await runAlpaca<Array<{ symbol: string }>>(['position', 'list']);
+    const activities: BrokerActivity[] = [];
+    let pageToken: string | undefined;
+    for (let page = 0; ; page += 1) {
+      if (page >= 50) throw new Error('Activity pagination exceeded its bound; settlement was not applied.');
+      const result = await runAlpaca<BrokerActivity[]>(['account', 'activity', 'list',
+        '--activity-types', 'OPEXP,OPEXC,OPASN', '--direction', 'asc', '--page-size', '100',
+        '--after', entries.map((entry) => entry.recordedAt.slice(0, 10)).sort()[0],
+        ...(pageToken ? ['--page-token', pageToken] : [])]);
+      activities.push(...result.data);
+      if (result.data.length < 100) break;
+      const next = result.data.at(-1)?.id;
+      if (!next || next === pageToken) throw new Error('Activity pagination did not advance.');
+      pageToken = next;
+    }
+    for (const entry of entries) {
+      const settled = reconcileOptionSettlement(entry, activities, new Set(positions.data.map((p) => p.symbol)));
+      if (!settled || existingKeys.has(settled.eventKey)) continue;
+      await publishPaperOrderEvent(settled, config.endpoint, config.token, config.sitesBypassToken);
+      process.stdout.write(`${entry.symbol}: ${settled.message}\n`);
+      published += 1;
+    }
   }
   process.stdout.write(`Published ${published} new broker reconciliation event(s).\n`);
 } catch (error) {

@@ -5,6 +5,7 @@ export type AlpacaEnvironment = Record<string, string | undefined>;
 const SAFE_READ_COMMANDS = new Set([
   'account get',
   'account portfolio',
+  'account activity list',
   'clock',
   'calendar',
   'position list',

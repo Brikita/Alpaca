@@ -39,6 +39,9 @@ export function openPortfolio(events: PaperOrderEvent[]): OpenPortfolio {
       && event.filledQuantity > 0)
     .map((event) => event.exit?.entryClientOrderId)
     .filter((value): value is string => Boolean(value)));
+  for (const event of events) {
+    if (event.eventType === 'settled' && event.settlement) closedEntryIds.add(event.settlement.entryClientOrderId);
+  }
   const entriesById = new Map<string, PaperOrderEvent>();
   for (const event of events) {
     if (event.eventType !== 'reconciled'
