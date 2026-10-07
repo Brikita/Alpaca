@@ -12,7 +12,7 @@ import type { PaperOrderEvent } from '../lib/paper-order';
 import { constructPosition, toTradeProposal } from '../lib/position-constructor';
 import { evaluateProposal } from '../lib/risk-governor';
 import { DEFAULT_RISK_POLICY } from '../lib/domain';
-import { correlationSlotsAfter, MAX_OPEN_STRATEGIES, openPortfolio } from '../lib/portfolio-positions';
+import { correlationSlotsAfter, MAX_OPEN_STRATEGIES, openPortfolio, portfolioPositionsMatch } from '../lib/portfolio-positions';
 import type { TradePerformance } from '../lib/performance-analytics';
 import type { StrategyReplay } from '../lib/replay';
 import type { DecisionMemory } from '../lib/decision-memory';
@@ -180,13 +180,15 @@ export default function Home() {
     : 0;
   const accountFresh = Boolean(snapshot && evidenceAgeSeconds(snapshot.capturedAt, refreshedAt) <= 60);
   const scanFresh = Boolean(scanBatch && evidenceAgeSeconds(scanBatch.capturedAt, refreshedAt) <= 60);
-  const controlLabel = automationLabel(automation, refreshedAt);
-  const controlClass = controlLabel === 'All halted' || controlLabel === 'Entries paused' ? 'paused' : controlLabel === 'Scheduled' ? '' : 'off-hours';
+  const portfolio = openPortfolio(tradeHistory);
+  const portfolioMismatch = Boolean(snapshot && !historyError && !portfolioPositionsMatch(portfolio.entries, snapshot.positions));
+  const controlLabel = portfolioMismatch ? 'Entries blocked' : automationLabel(automation, refreshedAt);
+  const controlClass = ['All halted', 'Entries paused', 'Entries blocked'].includes(controlLabel) ? 'paused' : controlLabel === 'Scheduled' ? '' : 'off-hours';
   const accountReady = Boolean(
     accountFresh && snapshot && snapshot.account.status === 'ACTIVE'
       && !snapshot.account.accountBlocked && !snapshot.account.tradingBlocked && !snapshot.account.suspendedByUser,
   );
-  const portfolio = openPortfolio(tradeHistory);
+  const residualPositions = snapshot?.positions.filter((position) => position.assetClass !== 'us_option') ?? [];
   const portfolioFull = portfolio.entries.length >= MAX_OPEN_STRATEGIES;
   const rawLeader = scanBatch?.scans.find((scan) => scan.symbol === scanBatch.leaderSymbol) ?? null;
   const availableCandidateSymbol = scanBatch
@@ -205,7 +207,7 @@ export default function Home() {
     ? memories.find((memory) => memory.symbol === leader.symbol && memory.generatedAt === scanBatch?.capturedAt)
     : undefined;
   const councilVotes = position && leader ? runAgentCouncil(leader, position, scanBatch?.catalyst, leaderMemory) : [];
-  const proposalDecision = position && leader && snapshot && accountReady && scanFresh && !historyError && !portfolioFull && !underlyingOccupied
+  const proposalDecision = position && leader && snapshot && accountReady && scanFresh && !historyError && !portfolioMismatch && !portfolioFull && !underlyingOccupied
     ? evaluateProposal({
         ...toTradeProposal(position, councilVotes),
         correlationSlotsAfter: correlationSlotsAfter(portfolio.entries, leader.symbol),
@@ -305,15 +307,24 @@ export default function Home() {
             <p>Open strategies</p>
             <h2>{snapshot ? `${portfolio.entries.length} / ${MAX_OPEN_STRATEGIES}` : '—'}</h2>
             <div className="risk-track"><i style={{ width: `${Math.min(100, (portfolio.openRisk / DEFAULT_RISK_POLICY.maxOpenRisk) * 100)}%` }} /></div>
-            <div className="metric-foot"><small>{snapshot ? `${money(portfolio.openRisk, 0)} max risk` : 'Awaiting sync'}</small><b className="muted">{money(DEFAULT_RISK_POLICY.maxOpenRisk, 0)} cap</b></div>
+            <div className="metric-foot"><small>{snapshot ? `${money(portfolio.openRisk, 0)} option risk${residualPositions.length ? ' · shares excluded' : ''}` : 'Awaiting sync'}</small><b className="muted">{money(DEFAULT_RISK_POLICY.maxOpenRisk, 0)} cap</b></div>
           </article>
           <article className="metric">
             <p>Agent state</p>
-            <h2 className="state"><i className={controlClass} />{controlLabel}</h2>
+            <h2 className="state"><i className={portfolioMismatch ? 'paused' : controlClass} />{portfolioMismatch ? 'Entries blocked' : controlLabel}</h2>
             <div className="metric-foot"><small>{controlLabel === 'Status unknown' ? 'Control status unavailable' : automation?.haltAll ? 'Exits and entries halted' : automation?.entriesPaused ? 'Exit monitoring remains scheduled' : 'Exit / entry cadence'}</small><b className="muted">{automation ? `${automation.exitCadenceMinutes}m / ${automation.entryCadenceMinutes}m` : '—'}</b></div>
           </article>
         </div>
 
+        {portfolioMismatch && <section className="decision-card" role="status" style={{ marginBottom: '1rem' }}>
+          <h2>Entries blocked — portfolio needs attention</h2>
+          <p>Broker holdings do not match the open option strategies. The scheduler is running, but new entries cannot proceed.</p>
+          {residualPositions.map((position) => <p key={position.symbol}>
+            <strong>{position.quantity} {position.symbol} shares</strong> · {money(position.marketValue)} market value · {signedMoney(position.unrealizedPnl)} unrealized P&amp;L.
+            {' '}Underlying shares require a separate management decision; the original spread risk limit no longer describes this holding.
+          </p>)}
+          <p>Broker snapshot: {snapshot?.capturedAt}. {accountFresh ? 'Current account evidence.' : 'Historical snapshot; refresh required before trading.'}</p>
+        </section>}
         <div className="dashboard-grid">
           <article className="decision-card" id="decisions">
             <div className="card-heading">
@@ -488,7 +499,9 @@ export default function Home() {
                     <div key={event.eventKey}>
                       <span className={`trade-event-status ${event.eventType}`}>{eventStatusLabel(event)}</span>
                       <strong>{event.symbol} · {strategyLabel(event.strategy)}</strong>
-                      <small>{historyTimeLabel(event.recordedAt, TIME_ZONES[timeZoneLabel])} {timeZoneLabel} · {event.exit
+                      <small>{historyTimeLabel(event.recordedAt, TIME_ZONES[timeZoneLabel])} {timeZoneLabel} · {event.settlement
+                        ? event.settlement.realizedPnl === null ? 'Exercise / assignment · resulting shares require review' : `${signedMoney(event.settlement.realizedPnl)} realized before fees · expired`
+                        : event.exit
                         ? `${signedMoney(event.exit.unrealizedPnl)} marked · ${money(event.exit.closeCredit)} close credit · ${exitReasonLabel(event.exit.reason)}`
                         : `${money(event.maxLoss, 0)} max loss · ${event.filledAveragePrice === null ? `${money(event.limitDebit)} limit` : `${money(event.filledAveragePrice)} fill`}`}</small>
                     </div>
