@@ -116,7 +116,10 @@ try {
     || snapshot.account.suspendedByUser
   ) throw new Error('The paper account is not ready for position management.');
   if (snapshot.openOrders.length > 0) {
-    throw new Error('An open broker order already exists; reconcile it before creating an exit.');
+    const message = `${snapshot.openOrders.length} broker order(s) remain open. Waiting for fill, cancellation, or expiry; additional entry and exit submissions are deferred.`;
+    process.stdout.write(`${message}\n`);
+    await writeWorkflowOutputs({ result: 'orders_pending', alertKey: 'broker-orders-pending', message });
+    process.exit(0);
   }
   if (!portfolioPositionsMatch(portfolio.entries, snapshot.positions)) {
     const message = portfolioReconciliationMessage(portfolio.entries, snapshot.positions);

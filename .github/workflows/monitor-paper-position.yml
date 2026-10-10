@@ -80,16 +80,16 @@ jobs:
         run: npm run monitor:position
 
       - name: Refresh the sanitized paper account snapshot
-        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && steps.monitor.outputs.result != 'reconciliation_required' }}
+        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && !contains(fromJSON('["reconciliation_required", "orders_pending", "market_closed"]'), steps.monitor.outputs.result) }}
         run: npm run snapshot:alpaca
 
       - name: Scan fresh option opportunities
-        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && steps.monitor.outputs.result != 'reconciliation_required' }}
+        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && !contains(fromJSON('["reconciliation_required", "orders_pending", "market_closed"]'), steps.monitor.outputs.result) }}
         run: npm run scan:options
 
       - name: Submit only a fully approved paper entry
         id: entry
-        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && steps.monitor.outputs.result != 'reconciliation_required' }}
+        if: ${{ inputs.run_entry && steps.monitor.outcome == 'success' && !contains(fromJSON('["reconciliation_required", "orders_pending", "market_closed"]'), steps.monitor.outputs.result) }}
         env:
           VOLGUARD_EXECUTION_ENABLED: 'paper'
         run: npm run execute:latest
